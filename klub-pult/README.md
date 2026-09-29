@@ -65,6 +65,16 @@ xabarlar konverti `{v,type,id,ts,payload}`.
 - Yigʻish: `cd admin && npm install && npm run dist` → `admin/dist/` (oʻrnatuvchi `setup.exe` — Windows Firewall qoidasini ham qoʻshadi, va `portable.exe`).
 - GitHub Actions: «Windows exe» workflow exe fayllarni yigʻib, *Artifacts* ga qoʻyadi.
 
+## Telegram bot
+
+Sozlamalar › Telegram bot. Klub Pult egasiga Telegram orqali xabar yuboradi: smena yopilganda kassa hisoboti (Kassa harakati (naqd), tushum, sanalgan pul, farq), smena ochilganda, qizil ogohlantirishlar, shubhali holatlar va (ixtiyoriy) jurnaldagi sariq yozuvlar.
+
+1. Telegramda @BotFather → `/newbot` → tokenni «Bot tokeni» ga qoʻying.
+2. Botingizda Start bosing (yoki botni guruhga qoʻshib, xabar yozing), keyin «Chat ID ni topish».
+3. «Saqlash» va «Sinov xabari yuborish».
+
+Token faqat admin kompyuterdagi bazada saqlanadi, repoga qoʻyilmaydi. Xabarlar Electron main jarayonidan yuboriladi (`tg:call`); internet uzilsa navbatda turadi (eng koʻpi 50 ta) va har daqiqada qayta yuboriladi. «Shubhali holatlar» ga yozilgan har bir hodisa (`klub:alert`) avtomatik yuboriladi: klient xavfli holatlari qizil, qolganlari shubhali sifatida. Kodning boshqa joylaridan: `tgNotify('alert'|'susp'|'shift'|'open'|'warn', matn)`.
+
 ## Litsenziya (kalit)
 > **Hozircha oʻchiq** (`admin/license.js` → `ENABLED = false`): dastur cheklovsiz ishlaydi, Litsenziya boʻlimi koʻrinmaydi.
 > Sotishni boshlaganda `true` qilib qayta yigʻiladi.
