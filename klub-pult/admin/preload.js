@@ -22,3 +22,16 @@ if (dbInfo.ok) contextBridge.exposeInMainWorld('kpDb', {
   archiveGet: id => ipcRenderer.invoke('db:arch.get', id),
   archiveDel: id => ipcRenderer.invoke('db:arch.del', id)
 });
+
+// Parol hash (argon2id) — faqat main jarayonda modul yuklangan boʻlsa ochiladi.
+if (ipcRenderer.sendSync('pw:ok')) contextBridge.exposeInMainWorld('kpPw', {
+  hash: pw => ipcRenderer.invoke('pw:hash', pw),
+  verify: (hash, pw) => ipcRenderer.invoke('pw:verify', hash, pw)
+});
+
+// Litsenziya: holat (sinxron), kalitni faollashtirish, soatlik oʻzgarish
+contextBridge.exposeInMainWorld('kpLic', {
+  status: () => ipcRenderer.sendSync('lic:status'),
+  activate: key => ipcRenderer.invoke('lic:activate', key),
+  on: fn => ipcRenderer.on('lic:changed', (e, st) => fn(st))
+});

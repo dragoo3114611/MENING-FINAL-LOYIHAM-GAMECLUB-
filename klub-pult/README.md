@@ -45,6 +45,7 @@ xabarlar konverti `{v,type,id,ts,payload}`.
 - **Agent → server:** `heartbeat`, `auth.login`, `session.started/updated/ended`, `client.request_time`,
   `client.call_admin`, `client.warning_shown`, `process.list.result`, `time.request/synced`, `message.shown`,
   `lock.wallpaper.request`, `client.unpair`. Har biriga `ack`/`error` javob.
+- **Operator va mijoz parollari** bazada ochiq emas, **argon2id** hash koʻrinishida saqlanadi (Klub Pult Server; brauzerda ochilgan prototipda — PBKDF2-SHA256). Eski bazadagi ochiq parollar dastur ochilganda avtomatik hash'ga oʻtkaziladi.
 - **Xizmat paroli** agentga `pbkdf2$<takror>$<salt b64>$<hash b64>` (SHA-256) formatida yuboriladi.
 - **Wake-on-LAN** haqiqiy UDP paket (255.255.255.255 va subnet broadcast, 9 va 7-port).
 
@@ -62,3 +63,16 @@ xabarlar konverti `{v,type,id,ts,payload}`.
 - Wake-on-LAN haqiqiy UDP paket bilan yuboriladi. Birinchi ishga tushishda namuna maʼlumotlarsiz, toza baza bilan ochiladi.
 - Yigʻish: `cd admin && npm install && npm run dist` → `admin/dist/` (oʻrnatuvchi `setup.exe` — Windows Firewall qoidasini ham qoʻshadi, va `portable.exe`).
 - GitHub Actions: «Windows exe» workflow exe fayllarni yigʻib, *Artifacts* ga qoʻyadi.
+
+## Litsenziya (kalit)
+> **Hozircha oʻchiq** (`admin/license.js` → `ENABLED = false`): dastur cheklovsiz ishlaydi, Litsenziya boʻlimi koʻrinmaydi.
+> Sotishni boshlaganda `true` qilib qayta yigʻiladi.
+
+- **Kalitsiz:** oʻrnatilgan kundan boshlab **5 kun** sinov, eng koʻpi **5 ta** klient kompyuter juftlanadi.
+  Muddat tugagach server ochilmaydi va dastur faqat kalit kiritish oynasini koʻrsatadi.
+- **Kalit** muallifning shaxsiy Ed25519 kaliti bilan imzolanadi va bitta admin kompyuterga bogʻlanadi
+  (Sozlamalar › Litsenziya › *Kompyuter kodi*, Windows MachineGuid'dan olinadi). Kalitda: klub nomi, PC soni
+  (0 — cheklovsiz), amal qilish muddati (0 — muddatsiz). Dasturda faqat ochiq kalit bor (`admin/license.js`),
+  shuning uchun undan yangi kalit yasab boʻlmaydi. Shaxsiy kalit va kalit generatori repoda **saqlanmaydi**.
+- Sinov boshlangan vaqt uch joyda (userData, ProgramData, registry) HMAC bilan saqlanadi; soat bir kundan
+  koʻproq orqaga surilsa litsenziya toʻxtatiladi.

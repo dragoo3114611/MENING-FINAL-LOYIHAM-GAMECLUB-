@@ -6,6 +6,7 @@
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <Company>DUST2 GAMEZONE</Company>
     <Product>DUST2 Klient</Product>
+    <Copyright>Copyright © 2026 DUST2 GAMEZONE. Barcha huquqlar himoyalangan.</Copyright>
     <Version Condition="'$(Version)' == ''">0.1.8</Version>
     <!--
       Diqqat: bu yerda InvariantGlobalization YOQILMAYDI.

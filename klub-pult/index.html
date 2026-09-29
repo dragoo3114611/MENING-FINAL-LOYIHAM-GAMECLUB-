@@ -77,7 +77,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 .clock{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:2px;padding:0 4px}
 .crow{display:flex;align-items:center;gap:10px}
 .bkb{border:1px solid var(--ok);color:var(--ok);background:var(--panel);border-radius:99px;padding:2px 10px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
-.bkb.off{border-color:var(--line);color:var(--muted)}.bkb.bad{border-color:var(--off);color:var(--off)}
+.bkb.off{border-color:var(--line);color:var(--muted)}.bkb.bad{border-color:var(--off);color:var(--off)}.bkb.warn{border-color:var(--warn);color:var(--warn)}
+.lic-mc{font:600 20px/1.2 ui-monospace,Consolas,monospace;letter-spacing:1px}.lic-ta{width:100%;min-height:90px;font:12px/1.4 ui-monospace,Consolas,monospace;word-break:break-all}
 .clock .t{color:var(--busy);font:600 22px/1 "JetBrains Mono",ui-monospace,monospace;border:1px solid var(--tool-b);background:var(--panel);padding:4px 10px;border-radius:3px;letter-spacing:.04em}
 .clock .d{font-size:12px;color:var(--muted)}
 .subbar{display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--panel2);border-bottom:1px solid var(--line2);flex-wrap:wrap}
@@ -862,6 +863,7 @@ function migrate(){
   if(!S.lockByGroup)S.lockByGroup={};
   if(!S.stockLog)S.stockLog=[];
   S.users.forEach(u=>{if(u.active==null)u.active=true;if(u.role!=='admin'){u.perms=Object.assign({},DEF_PERMS,S.perms||{},u.perms||{})}});
+  if([...S.users,...(S.clients||[])].some(u=>u.pass&&!pwIsHash(u.pass)))pwMigrate();
   if(!S.requests)S.requests=[];
   if(!S.debtPays){S.debtPays=[];S.debts.forEach(d=>{(d.pays||[]).forEach(x=>S.debtPays.push({id:uid(),key:debtKey(d),clientId:d.clientId,name:d.name,t:x.t,amount:x.amount,disc:x.disc||0,pct:x.disc&&x.amount?Math.round(x.disc/x.amount*100):0,method:x.method}));delete d.pays;delete d.paid})}
   if(st.lock&&st.lock.sPc==null)st.lock.sPc=100;
@@ -901,7 +903,10 @@ function modal({title,body,wide,xl,actions,onMount,locked}){
   const f=$('.dlg-f',ov);
   let escFn;const close=()=>{ov.remove();const i=modals.indexOf(escFn);if(i>=0)modals.splice(i,1)};escFn=locked?()=>{}:close;
   (actions||[{label:'Yopish'}]).forEach(a=>{const b=document.createElement('button');b.type='button';b.className='btn '+(a.cls||'');b.textContent=a.label;if(a.id)b.id=a.id;if(a.disabled){b.disabled=true;if(a.title)b.title=a.title}
-    b.onclick=()=>{if(a.run&&a.run(ov)===false)return;close()};f.appendChild(b)});
+    b.onclick=()=>{const r=a.run&&a.run(ov);if(r===false)return;
+      if(r&&typeof r.then==='function'){const bs=[...f.children],was=bs.map(x=>x.disabled);bs.forEach(x=>x.disabled=true);
+        const back=()=>bs.forEach((x,i)=>x.disabled=was[i]);r.then(x=>{back();if(x!==false)close()},err=>{back();toast('Xato: '+(err&&err.message||err),'err')});return}
+      close()};f.appendChild(b)});
   if(!locked){ov.addEventListener('mousedown',e=>{if(e.target===ov)close()});$('[data-x]',ov).onclick=close}
   const mx=$('[data-mx]',ov);if(mx)mx.onclick=()=>{const on=$('.dlg',ov).classList.toggle('max');mx.textContent=on?'⤡':'⤢';mx.title=mx.ariaLabel=on?'Kichraytirish':'Butun ekranga'};
   document.body.appendChild(ov);modals.push(escFn);
@@ -920,10 +925,35 @@ function adminPrompt(label,fn){
     ${admins.length>1?`<label>Administrator<select id="ap-u">${admins.map(u=>`<option value="${esc(u.login)}">${esc(u.name)}</option>`).join('')}</select></label>`:''}
     <label>Administrator paroli<input id="ap-p" type="password" autocomplete="off"></label><div class="err" id="ap-e"></div></div>`,
     actions:[{label:'Bekor qilish'},{label:'Ruxsat berish',cls:'pri',run:()=>{const a=admins.length>1?admins.find(u=>u.login===v('ap-u')):admins[0];
-      if(!a||(a.pass||'')!==v('ap-p'))return $('#ap-e').textContent='Parol notoʻgʻri',false;
-      ui.elev=Date.now()+5*MIN;addLog('warn',`Admin ruxsati bilan: ${label} — ${me().name} (tasdiqladi: ${a.name})`);setTimeout(fn,0)}}],
+      if(!a)return $('#ap-e').textContent='Parol notoʻgʻri',false;
+      return pwCheck(a,v('ap-p')).then(ok=>{if(!ok)return $('#ap-e').textContent='Parol notoʻgʻri',false;
+      ui.elev=Date.now()+5*MIN;addLog('warn',`Admin ruxsati bilan: ${label} — ${me().name} (tasdiqladi: ${a.name})`);setTimeout(fn,0)})}}],
     onMount:ov=>$('#ap-p',ov).addEventListener('keydown',e=>{if(e.key==='Enter')$('.dlg-f .pri',ov).click()})});
 }
+/* ---------- Operator va mijoz parollari: argon2id (Klub Pult Server) yoki PBKDF2 (brauzer) ---------- */
+// Bazada parol emas, faqat hash saqlanadi. u.pass boʻsh — parolsiz foydalanuvchi.
+const pwIsHash=h=>/^\$argon2|^pbkdf2\$/.test(h||'');
+const PW_IT=310000,u8b64=u8=>btoa(String.fromCharCode(...u8)),b64u8=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function pbkdf2(pw,salt,it){const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveBits']);
+  return new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:it,hash:'SHA-256'},k,256))}
+async function pwHash(pw){if(!pw)return '';if(window.kpPw)return window.kpPw.hash(pw);
+  const salt=crypto.getRandomValues(new Uint8Array(16));return `pbkdf2$${PW_IT}$${u8b64(salt)}$${u8b64(await pbkdf2(pw,salt,PW_IT))}`}
+async function pwVerify(h,pw){
+  if(/^\$argon2/.test(h))return window.kpPw?!!(await window.kpPw.verify(h,pw)):false;
+  const m=/^pbkdf2\$(\d+)\$([^$]+)\$([^$]+)$/.exec(h);
+  if(m){const a=await pbkdf2(pw,b64u8(m[2]),+m[1]),b=b64u8(m[3]);let d=a.length^b.length;for(let i=0;i<a.length&&i<b.length;i++)d|=a[i]^b[i];return d===0}
+  return h===pw} // eski versiyadan qolgan ochiq parol — birinchi kirishda hash'ga oʻtadi
+// toʻgʻri boʻlsa true; eski format (ochiq yoki PBKDF2) boʻlsa argon2 ga yangilab qoʻyadi
+async function pwCheck(u,pw){const h=u.pass||'';if(!h)return !pw;
+  if(!(await pwVerify(h,pw)))return false;
+  if(window.kpPw&&!/^\$argon2/.test(h)){const n=await window.kpPw.hash(pw);if(u.pass===h){u.pass=n;save()}}
+  return true}
+// ochiq saqlangan parollarni (operator va mijoz; eski baza yoki backup) hash'ga oʻtkazish
+async function pwMigrate(){let ch=false;const users=S.users||[];
+  for(const u of [...users,...(S.clients||[])]){const h=u.pass;if(!h||pwIsHash(h))continue;
+    const n=await pwHash(h);if(u.pass!==h)continue;
+    if(users.includes(u)&&(h==='admin'||h==='1111'))u.defPw=true;u.pass=n;ch=true}
+  if(ch)save()}
 let popEl=null;
 const MI={hist:'<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
   edit:'<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 13l1-3 6.5-6.5 2 2L6 12z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
@@ -996,7 +1026,7 @@ function vZal(m){
   m.innerHTML=`<div class="zal">
     <div class="toolbar" role="toolbar" aria-label="Kompyuter amallari">
       ${TB.map(b=>b&&b[0].startsWith('m:')?`<button class="tb tbm" type="button" data-act="${b[0]}" title="${PMT[b[0].slice(2)]} — boshqa variantlar" aria-label="${PMT[b[0].slice(2)]} variantlari" aria-haspopup="menu">▾</button>`:b?`<button class="tb" type="button" data-act="${b[0]}"><svg viewBox="0 0 24 24" aria-hidden="true">${IC.mon}${IC[b[0]]}</svg>${b[1]}</button>`:'<span class="tb-sep"></span>').join('')}
-      <div class="clock"><div class="crow"><button type="button" class="bkb off" id="bkb"></button><div class="t" id="clk"></div></div><div class="d" id="clkd"></div></div>
+      <div class="clock"><div class="crow"><button type="button" class="bkb" id="licb" hidden></button><button type="button" class="bkb off" id="bkb"></button><div class="t" id="clk"></div></div><div class="d" id="clkd"></div></div>
     </div>
     <div class="subbar">
       <div class="tabs"><button type="button" data-zm="table">Kompyuterlar</button><button type="button" data-zm="cards">Kartalar</button></div>
@@ -1127,7 +1157,7 @@ function updateToolbar(){
   $$('.tb').forEach(b=>{b.disabled=!en[b.dataset.act]});
   const pb=$('.tb[data-act="pause"]');if(pb&&one)pb.lastChild.textContent=one.status==='pause'?'Davom etish':'Pauza';
 }
-function updateClock(){bkBadge();const c=$('#clk');if(!c)return;const now=Date.now();c.textContent=hms(now);$('#clkd').textContent=dstr(now)+', '+['yakshanba','dushanba','seshanba','chorshanba','payshanba','juma','shanba'][new Date(now).getDay()]}
+function updateClock(){bkBadge();licBadge();const c=$('#clk');if(!c)return;const now=Date.now();c.textContent=hms(now);$('#clkd').textContent=dstr(now)+', '+['yakshanba','dushanba','seshanba','chorshanba','payshanba','juma','shanba'][new Date(now).getDay()]}
 function primary(n){const p=pcBy(n);if(p.status==='free'||(p.status==='off'&&S.settings.beh.autoWake&&p.mac))startModal(n);else if(active(p))stopModal(n);else if(p.status==='off')zalAction('wake')}
 function zalAction(a,btn){
   if(a.startsWith('m:'))return powerMenu(a.slice(2),btn||$(`.tb[data-act="${a}"]`));
@@ -1598,13 +1628,15 @@ function barStock(b,m){
 function clientModal(id){
   const c=id?client(id):{name:'',phone:'+998 ',login:'',pass:''};
   modal({title:id?'Mijozni tahrirlash':'Yangi mijoz',body:`<div class="frm"><label>Ism familiya<input id="cl-n" value="${esc(c.name)}"></label><label>Telefon<input id="cl-p" value="${esc(c.phone)}" inputmode="tel"></label>
-    <div class="row2"><label>Login (kompyuterga kirish uchun)<input id="cl-l" value="${esc(c.login)}" autocomplete="off"></label><label>Parol<input id="cl-s" value="${esc(c.pass)}" autocomplete="off"></label></div>
+    <div class="row2"><label>Login (kompyuterga kirish uchun)<input id="cl-l" value="${esc(c.login)}" autocomplete="off"></label><label>Parol<input id="cl-s" type="password" autocomplete="new-password" placeholder="${id&&c.pass?'Oʻzgartirmaslik uchun boʻsh qoldiring':''}"></label></div>
     <div class="note">Mijoz istalgan kompyuterda shu login va parol bilan kiradi, oʻyin vaqti balansidan yechiladi.</div><div class="err" id="cl-e"></div></div>`,
     actions:[{label:'Bekor qilish'},{label:'Saqlash',cls:'pri',run:()=>{const n=v('cl-n').trim(),l=v('cl-l').trim().toLowerCase();
       if(!n||!l)return $('#cl-e').textContent='Ism va login majburiy',false;
       if(S.clients.some(x=>x.login===l&&x.id!==id))return $('#cl-e').textContent='Bu login band',false;
-      const o={name:n,phone:v('cl-p').trim(),login:l,pass:v('cl-s')};
-      if(id)Object.assign(c,o);else{S.clients.push(Object.assign({id:'c'+uid(),balance:0,createdAt:Date.now()},o));addLog('info',`Yangi mijoz roʻyxatdan oʻtdi: ${n} (@${l})`)}commit();toast('Saqlandi')}}]});
+      const pw=v('cl-s'),ph=v('cl-p').trim();
+      return (pw?pwHash(pw):Promise.resolve(null)).then(h=>{if(S.clients.some(x=>x.login===l&&x.id!==id))return $('#cl-e').textContent='Bu login band',false;
+        const o={name:n,phone:ph,login:l};if(h!=null)o.pass=h;else if(!id)o.pass='';
+        if(id)Object.assign(c,o);else{S.clients.push(Object.assign({id:'c'+uid(),balance:0,createdAt:Date.now()},o));addLog('info',`Yangi mijoz roʻyxatdan oʻtdi: ${n} (@${l})`)}commit();toast('Saqlandi')})}}]});
 }
 function topupModal(id){
   const c=client(id);
@@ -2012,17 +2044,18 @@ function vTariffs(m){
 }
 
 /* =================== SOZLAMALAR =================== */
-const SSEC=[['pcs','Kompyuterlar'],['lock','Qulf ekrani'],['klub','Klub'],['users','Foydalanuvchilar va huquqlar',1],['ui','Server interfeysi'],['data','Backup',1],['clean','Maʼlumotlarni tozalash',1]];
+const SSEC=[['pcs','Kompyuterlar'],['lock','Qulf ekrani'],['klub','Klub'],['users','Foydalanuvchilar va huquqlar',1],['ui','Server interfeysi'],['data','Backup',1],['clean','Maʼlumotlarni tozalash',1],['lic','Litsenziya']];
 function vSettings(m){
   if(!can('sozlamalar'))return vZal(m);
-  let sec=SSEC.find(x=>x[0]===ui.setSec)||SSEC[0];
+  const SS=SSEC.filter(x=>x[0]!=='lic'||(lic&&!lic.off)); // litsenziya oʻchiq boʻlsa boʻlim koʻrinmaydi
+  let sec=SS.find(x=>x[0]===ui.setSec)||SS[0];
   if(sec[2]&&!adminish())sec=SSEC[0];
   ui.setSec=sec[0];
   m.innerHTML=`<div class="page"><div class="ph"><h1>Sozlamalar</h1></div><div class="set">
-    <nav class="set-nav box" aria-label="Sozlamalar boʻlimlari">${SSEC.map(([k,l,a])=>`<button type="button" data-ss="${k}" class="${ui.setSec===k?'on':''}"${a&&!adminish()?' data-lock="1" title="Administrator paroli soʻraladi"':''}>${l}</button>`).join('')}</nav>
+    <nav class="set-nav box" aria-label="Sozlamalar boʻlimlari">${SS.map(([k,l,a])=>`<button type="button" data-ss="${k}" class="${ui.setSec===k?'on':''}"${a&&!adminish()?' data-lock="1" title="Administrator paroli soʻraladi"':''}>${l}</button>`).join('')}</nav>
     <div class="set-body" id="setb"></div></div></div>`;
   $$('[data-ss]',m).forEach(b=>b.onclick=()=>{const g=()=>{ui.setSec=b.dataset.ss;vSettings(m)};b.dataset.lock?guard(null,'Sozlamalar › '+b.textContent,g):g()});
-  ({pcs:setPcs,lock:setLock,klub:setKlub,users:setUsers,disc:setDisc,tarif:setTarif,ui:setUi,data:setData,clean:setClean}[ui.setSec])($('#setb'));
+  ({pcs:setPcs,lock:setLock,klub:setKlub,users:setUsers,disc:setDisc,tarif:setTarif,ui:setUi,data:setData,clean:setClean,lic:setLic}[ui.setSec])($('#setb'));
 }
 const sw=(id,on,label)=>`<span class="sw"><input type="checkbox" id="${id}"${on?' checked':''}${label?` aria-label="${esc(label)}"`:''}></span>`;
 
@@ -2296,7 +2329,7 @@ function setUsers(b){
   $$('[data-um]',b).forEach(x=>x.onclick=()=>{const u=S.users.find(y=>y.login===x.dataset.um),self=u.login===S.user,lastAdmin=u.role==='admin'&&S.users.filter(y=>y.role==='admin'&&y.active!==false).length<2;
     popMenu(x,[{icon:MI.edit,label:u.role==='admin'?'Tahrirlash (ism, rol)':'Tahrirlash va ruxsatlar',run:()=>userModal(u.login)},
       {icon:MI.key,label:u.pass?'Parolni oʻzgartirish':'Parol oʻrnatish',run:()=>userPwModal(u.login)},
-      ...(u.pass?[{icon:MI.key,label:'Parolni olib tashlash',disabled:u.role==='admin'&&!!S.users.find(y=>y.role!=='admin'&&y.pass),run:()=>confirmM('Parolni olib tashlash',`${esc(u.name)} parolsiz kiradigan boʻladi.`,()=>{u.pass='';addLog('warn',`Parol olib tashlandi: ${u.name} — ${me().name}`);commit()},'Olib tashlash')}]:[]),
+      ...(u.pass?[{icon:MI.key,label:'Parolni olib tashlash',disabled:u.role==='admin'&&!!S.users.find(y=>y.role!=='admin'&&y.pass),run:()=>confirmM('Parolni olib tashlash',`${esc(u.name)} parolsiz kiradigan boʻladi.`,()=>{u.pass='';delete u.defPw;addLog('warn',`Parol olib tashlandi: ${u.name} — ${me().name}`);commit()},'Olib tashlash')}]:[]),
       {icon:MI.lock,label:u.active===false?'Faollashtirish':'Bloklash',disabled:self||(u.active!==false&&lastAdmin),run:()=>{u.active=u.active===false;addLog('warn',`${u.active?'Faollashtirildi':'Bloklandi'}: ${u.name} — ${me().name}`);commit()}},
       '-',{icon:MI.del,label:'Oʻchirish',danger:true,disabled:self||lastAdmin,run:()=>confirmM('Foydalanuvchini oʻchirish',`${esc(u.name)} (${esc(u.login)}) oʻchirilsinmi? Jurnaldagi yozuvlar saqlanadi.`,()=>{S.users=S.users.filter(y=>y!==u);addLog('warn',`Foydalanuvchi oʻchirildi: ${u.name} — ${me().name}`);commit()},'Oʻchirish')}])});
 }
@@ -2313,15 +2346,16 @@ function userModal(login){
       if(!login&&S.users.some(x=>x.login===l))return e.textContent='Bu login band',false;
       if(login&&u.role==='admin'&&r!=='admin'&&S.users.filter(x=>x.role==='admin').length<2)return e.textContent='Oxirgi administratorning rolini oʻzgartirib boʻlmaydi',false;
       const perms={};$$('[data-up]',ov).forEach(x=>perms[x.dataset.up]=x.checked);
-      if(login){u.name=n;u.role=r;u.perms=perms;addLog('info',`Foydalanuvchi oʻzgartirildi: ${n} — ${me().name}`)}
-      else{S.users.push({login:l,name:n,role:r,pass:v('us-p'),active:true,perms});addLog('info',`Yangi foydalanuvchi: ${n} (${r==='admin'?'administrator':'operator'}) — ${me().name}`)}
-      commit();toast('Saqlandi')}}],
+      if(login){u.name=n;u.role=r;u.perms=perms;addLog('info',`Foydalanuvchi oʻzgartirildi: ${n} — ${me().name}`);commit();toast('Saqlandi');return}
+      return pwHash(v('us-p')).then(h=>{if(S.users.some(x=>x.login===l))return e.textContent='Bu login band',false;
+        S.users.push({login:l,name:n,role:r,pass:h,active:true,perms});addLog('info',`Yangi foydalanuvchi: ${n} (${r==='admin'?'administrator':'operator'}) — ${me().name}`);
+        commit();toast('Saqlandi')})}}],
     onMount:ov=>{const t=()=>{$('#us-pw',ov).hidden=v('us-r')==='admin'};$('#us-r',ov).onchange=t;t()}});
 }
 function userPwModal(login){const u=S.users.find(x=>x.login===login);
   modal({title:`${u.name} — parol`,body:`<div class="frm"><label>Yangi parol<input id="up-1" type="password" autocomplete="new-password"></label><label>Parolni takrorlang<input id="up-2" type="password" autocomplete="new-password"></label><div class="err" id="up-e"></div></div>`,
     actions:[{label:'Bekor qilish'},{label:'Saqlash',cls:'dark',run:()=>{const a=v('up-1');if(!a)return $('#up-e').textContent='Parolni kiriting',false;if(a!==v('up-2'))return $('#up-e').textContent='Parollar mos kelmadi',false;
-      u.pass=a;addLog('info',`Parol oʻrnatildi: ${u.name} — ${me().name}`);commit();toast('Parol saqlandi')}}]});
+      return pwHash(a).then(h=>{u.pass=h;delete u.defPw;addLog('info',`Parol oʻrnatildi: ${u.name} — ${me().name}`);commit();toast('Parol saqlandi')})}}]});
 }
 
 /* ---------- Chegirmalar: qarz toʻlovida ---------- */
@@ -2530,10 +2564,10 @@ function openShell(n){sh.n=n;let el=$('#shell');
     $('#sh-x').onclick=closeShell;$('#sh-pc').onchange=e=>{sh.n=+e.target.value;sh.toast=null;renderShell()};
     const scr=$('#kc-scr');
     scr.addEventListener('click',kcClick);
-    scr.addEventListener('submit',e=>{if(e.target.id!=='lk-lf')return;e.preventDefault();const p=pcBy(sh.n),r=klLogin(p,v('lk-l'),v('lk-p'));
+    scr.addEventListener('submit',e=>{if(e.target.id!=='lk-lf')return;e.preventDefault();const p=pcBy(sh.n);klLogin(p,v('lk-l'),v('lk-p')).then(r=>{
       if(r.err){$('#lk-e').textContent=r.err;$('#lk-p').value='';$('#lk-p').focus();return}
       addLog('info',`PC ${p.n}: mijoz qulf ekranidan akkaunt bilan kirdi (${r.name})`);save();renderNav();if(ui.view==='zal'){renderGrid();updateToolbar()}
-      kcToast(`Xush kelibsiz, ${r.name}`,`Balans: ${som(r.balance)}`,'green');renderShell()})}
+      kcToast(`Xush kelibsiz, ${r.name}`,`Balans: ${som(r.balance)}`,'green');renderShell()})})}
   renderShell()}
 function closeShell(){const el=$('#shell');if(el)el.remove();sh.n=null;sh.toast=null}
 function kcView(p,now){return p.status==='off'||p.pwrOff?'off':(p.bootUntil||0)>now?'boot':p.session&&p.status==='busy'?'desk':'lock'}
@@ -2603,10 +2637,11 @@ function kcDrag(){const w=$('#kc-w');if(!w)return;let d=null;
   w.onpointermove=e=>{if(!d)return;const x=Math.max(0,Math.min(d.sr.width-d.w,e.clientX-d.sr.left-d.dx)),y=Math.max(0,Math.min(d.sr.height-d.h,e.clientY-d.sr.top-d.dy));
     sh.pos={x:x/d.sr.width*100,y:y/d.sr.height*100};w.style.left=sh.pos.x+'%';w.style.top=sh.pos.y+'%';w.style.right='auto'};
   w.onpointerup=()=>{d=null;w.classList.remove('drag')}}
-function klLogin(p,login,pass){
+async function klLogin(p,login,pass){
   if(active(p))return {err:'Kompyuter band'};
   const c=S.clients.find(x=>x.login===String(login).trim().toLowerCase());
-  if(!c||c.pass!==pass)return {err:'Login yoki parol notoʻgʻri'};
+  if(!c||!(await pwCheck(c,pass)))return {err:'Login yoki parol notoʻgʻri'};
+  if(active(p))return {err:'Kompyuter band'};
   const other=S.pcs.find(x=>x.session&&x.session.clientId===c.id);if(other)return {err:`Siz PC ${other.n} da oʻynayapsiz`};
   const t=S.tariffs.find(x=>x.type==='hour'&&applies(x)&&grpAllows(p.group,x));if(!t)return {err:'Hozir amal qiladigan tarif yoʻq — administratorga murojaat qiling'};
   if(c.balance<t.price/60)return {err:`Balans yetarli emas (${som(c.balance)}). Administratorda toʻldiring.`};
@@ -2616,11 +2651,12 @@ function klLogin(p,login,pass){
 function loginModal(start){
   const us=S.users.filter(u=>u.active!==false);
   const def=us.find(u=>u.login===S.user)||us[0];
-  const old=S.users.some(u=>u.pass==='admin'||u.pass==='1111');
+  const old=S.users.some(u=>u.defPw||u.pass==='admin'||u.pass==='1111');
   modal({title:start?`${S.settings.name} — kirish`:'Foydalanuvchini almashtirish',locked:!!start,body:`<div class="frm"><label>Foydalanuvchi<select id="lg-u">${us.map(u=>`<option value="${esc(u.login)}"${u===def?' selected':''}>${esc(u.name)} (${u.role==='admin'?'administrator':'operator'})</option>`).join('')}</select></label>
     <label id="lg-pw">Parol<input id="lg-p" type="password" autocomplete="off"></label>${old?'<div class="note">Prototipdagi boshlangʻich parollar: admin — <b>admin</b>, operator — <b>1111</b></div>':''}<div class="err" id="lg-e"></div></div>`,
-    actions:[...(start?[]:[{label:'Bekor qilish'}]),{label:'Kirish',cls:'pri',run:()=>{const u=us.find(x=>x.login===v('lg-u'));if(!u)return false;if((u.pass||'')!==(u.pass?v('lg-p'):''))return $('#lg-e').textContent='Parol notoʻgʻri',false;
-      S.user=u.login;ui.elev=0;addLog('info',`Tizimga kirdi: ${u.name}`);if(!viewOk(ui.view))ui.view='zal';commit();toast(`Xush kelibsiz, ${u.name}`)}}],
+    actions:[...(start?[]:[{label:'Bekor qilish'}]),{label:'Kirish',cls:'pri',run:()=>{const u=us.find(x=>x.login===v('lg-u'));if(!u)return false;
+      return pwCheck(u,u.pass?v('lg-p'):'').then(ok=>{if(!ok)return $('#lg-e').textContent='Parol notoʻgʻri',false;
+      S.user=u.login;ui.elev=0;addLog('info',`Tizimga kirdi: ${u.name}`);if(!viewOk(ui.view))ui.view='zal';commit();toast(`Xush kelibsiz, ${u.name}`)})}}],
     onMount:ov=>{const t=()=>{const u=us.find(x=>x.login===v('lg-u'));$('#lg-pw',ov).hidden=!(u&&u.pass)};$('#lg-u',ov).onchange=t;t();
       $('#lg-p',ov).addEventListener('keydown',e=>{if(e.key==='Enter')$('.dlg-f .pri',ov).click()})}});
 }
@@ -2630,6 +2666,48 @@ function loginModal(start){
    (ws://<ip>:<port>/agent). Klient agentlar shared/protocol.md dagi protokol bilan
    ulanadi: konvert {v,type,id,ts,payload}. Brauzerda kpNet yoʻq — ichki simulyatsiya. */
 const NET=window.kpNet||null;
+/* ---- Litsenziya: kalitsiz 5 kun va 5 ta PC; kalit muallif tomonidan shu kompyuter uchun beriladi ---- */
+const LIC=window.kpLic||null;
+let lic=LIC?LIC.status():null; // brauzerdagi prototipda cheklov yoʻq (u yerda server ham yoʻq)
+const licMax=()=>!lic?Infinity:lic.state==='expired'?0:(lic.maxPcs||Infinity);
+// ruxsat berilgan PClar: juftlanganlar ichidan raqami boʻyicha birinchi N tasi
+const licAllowed=p=>{const mx=licMax();if(mx===Infinity)return true;return S.pcs.filter(x=>x.token).sort((a,b)=>a.n-b.n).slice(0,mx).includes(p)};
+function licText(){if(!lic)return '';const d=t=>dmy(t).split(' ')[0];
+  if(lic.state==='licensed')return `Litsenziya faol${lic.name?': '+lic.name:''} · ${lic.maxPcs?lic.maxPcs+' ta PC':'PC cheklovsiz'}${lic.expires?' · '+d(lic.expires)+' gacha':' · muddatsiz'}`;
+  if(lic.state==='trial')return `Sinov rejimi: ${lic.daysLeft} kun qoldi · eng koʻpi ${lic.maxPcs} ta PC`;
+  return lic.reason==='clock'?'Kompyuter soati orqaga surilgan — litsenziya toʻxtatildi':lic.reason==='key'?'Kalit muddati tugagan':'Sinov muddati tugagan'}
+function licBadge(){const el=$('#licb');if(!el)return;if(!lic||lic.state==='licensed'&&!lic.expires){el.hidden=true;return}
+  const tx=lic.state==='trial'?`Sinov: ${lic.daysLeft} kun`:lic.state==='expired'?'Litsenziya yoʻq':`Litsenziya: ${dmy(lic.expires).split(' ')[0]} gacha`;
+  el.hidden=false;if(el.textContent!==tx){el.textContent=tx;el.className='bkb '+(lic.state==='expired'?'bad':lic.state==='trial'?'warn':'');el.title=licText()}
+  if(!el.onclick)el.onclick=()=>{ui.setSec='lic';ui.view='sozlamalar';renderNav();render()}}
+function licCopy(){const c=lic.machine;try{navigator.clipboard.writeText(c).then(()=>toast('Kompyuter kodi nusxalandi: '+c),()=>toast('Kompyuter kodi: '+c))}catch(e){toast('Kompyuter kodi: '+c)}}
+async function licActivate(key){const r=await LIC.activate(key);if(!r.ok)return r.err||'Kalit qabul qilinmadi';
+  lic=r.status;addLog('info',`Litsenziya faollashtirildi: ${licText()}`);save();licBadge();
+  if(NET&&!(net.info&&net.info.running))netStart();return ''}
+function setLic(b){
+  if(!lic){b.innerHTML=`<div class="box"><h2>Litsenziya</h2><div class="boxb"><p class="note" style="margin:0">Bu brauzerdagi prototip. Litsenziya Klub Pult Server (Windows ilovasi) da tekshiriladi.</p></div></div>`;return}
+  const st=lic.state,used=S.pcs.filter(x=>x.token).length;
+  b.innerHTML=`<div class="box"><h2>Litsenziya</h2><div class="boxb">
+    <div class="bkst"><i class="dot${st==='licensed'?' ok':''}"></i><div><b>${esc(licText())}</b><small>Juftlangan kompyuterlar: ${used}${licMax()===Infinity?'':' / '+licMax()}</small></div></div>
+    <div class="flabel" style="margin-top:14px">Kompyuter kodi</div>
+    <div class="qk"><span class="lic-mc">${esc(lic.machine)}</span><button class="btn sm" type="button" id="lic-cp">Nusxalash</button></div>
+    <p class="note">Kalit olish uchun shu kodni dastur muallifiga yuboring. Kalit faqat shu kompyuterda ishlaydi.</p>
+    <div class="flabel" style="margin-top:14px">Kalit</div>
+    <textarea class="lic-ta" id="lic-k" placeholder="KP1.…" spellcheck="false"></textarea><div class="err" id="lic-e"></div>
+    <div class="qk" style="margin-top:8px"><button class="btn pri" type="button" id="lic-go">Faollashtirish</button></div>
+  </div></div>`;
+  $('#lic-cp').onclick=licCopy;
+  $('#lic-go').onclick=async()=>{const bt=$('#lic-go');bt.disabled=true;const e=await licActivate(v('lic-k'));bt.disabled=false;
+    if(e){$('#lic-e').textContent=e;return}toast('Litsenziya faollashtirildi');setLic(b)}}
+// muddat tugagan: dastur yopiq, faqat kalit kiritish oynasi
+function licGate(){if(!lic||lic.state!=='expired'||$('#lic-gate'))return;
+  modal({title:'Klub Pult — litsenziya',locked:true,body:`<div class="frm" id="lic-gate"><p style="margin:0"><b>${esc(licText())}.</b> Dasturdan foydalanishni davom ettirish uchun kalit kiriting.</p>
+    <label>Kompyuter kodi<div class="qk"><span class="lic-mc">${esc(lic.machine)}</span><button class="btn sm" type="button" id="lg-cp">Nusxalash</button></div></label>
+    <p class="note" style="margin:0">Shu kodni dastur muallifiga yuboring — u sizga shu kompyuter uchun kalit beradi.</p>
+    <label>Kalit<textarea class="lic-ta" id="lg-k" placeholder="KP1.…" spellcheck="false"></textarea></label><div class="err" id="lg-ke"></div></div>`,
+    actions:[{label:'Faollashtirish',cls:'pri',run:()=>licActivate(v('lg-k')).then(e=>{if(e)return $('#lg-ke').textContent=e,false;toast('Litsenziya faollashtirildi');commit()})}],
+    onMount:ov=>{$('#lg-cp',ov).onclick=licCopy}})}
+if(LIC)LIC.on(st=>{const was=lic&&lic.state;lic=st;licBadge();if(st.state==='expired'){if(was!=='expired')addLog('warn',licText());licGate()}});
 const net={conn:{},byPc:{},info:null,procs:{},lockSig:{},sess:{},prev:{},boot:{},fsw:{},queue:{},svc:{for:null,hash:''}};
 const LIVE_ONLY=new Set(['power.off','power.reboot','process.list','process.kill','time.sync','session.start','session.add_time','session.pause','session.resume','session.end','session.lock','lock.config','theme.set']);
 const online=p=>!!(NET&&p&&net.byPc[p.n]!=null);
@@ -2732,6 +2810,8 @@ async function pairReq(id,m,P){const sv=S.settings.srv,name=String(P.name||'').t
   if(code!==sv.code)return deny('bad_code','Ulanish kodi notoʻgʻri. Admin kompyuterda koʻrsatilgan kodni kiriting.');
   const p=pcByName(name);
   if(!p)return deny('unknown_pc',`Bu nom bilan kompyuter roʻyxatda yoʻq: "${name}". Avval Sozlamalar › Kompyuterlar boʻlimida shu nomli kompyuter qoʻshing.`);
+  if(!(p.token?licAllowed(p):S.pcs.filter(x=>x.token).length<licMax()))
+    return deny('license_limit',`Litsenziya boʻyicha eng koʻpi ${licMax()} ta kompyuter ulanadi. Koʻproq kompyuter uchun kalit oling (Sozlamalar › Litsenziya).`);
   if(net.byPc[p.n]!=null){const oc=net.byPc[p.n];delete net.byPc[p.n];NET.close(oc)}
   const tok=[...crypto.getRandomValues(new Uint8Array(32))].map(x=>x.toString(16).padStart(2,'0')).join('');
   p.token=await sha256hex(tok);p.cname=name;
@@ -2744,13 +2824,15 @@ async function pairReq(id,m,P){const sv=S.settings.srv,name=String(P.name||'').t
 async function helloReq(id,m,P){const hash=await sha256hex(String(P.token||''));
   const p=S.pcs.find(x=>x.token&&x.token===hash);
   if(!p){sendRaw(id,'error',{re:m.id,code:'unauthorized',message:'Maxfiy kalit yaroqsiz — qayta juftlang'});setTimeout(()=>NET.close(id),100);return}
+  if(!licAllowed(p)){sendRaw(id,'error',{re:m.id,code:'license_limit',message:`Litsenziya boʻyicha eng koʻpi ${licMax()} ta kompyuter ulanadi`});
+    if(!net.licWarn||net.licWarn<Date.now()-600000){net.licWarn=Date.now();addLog('warn',`PC ${p.n}: litsenziya cheklovi (${licMax()} ta PC) — ulanmadi`)}setTimeout(()=>NET.close(id),100);return}
   attach(id,p,P.ip,P.mac,P.version);
   const now=Date.now(),sp=dSession(p,now),name=p.cname||('PC '+p.n);
   sendRaw(id,'hello.ok',{pcId:p.n,name,serverTime:now,session:sp,lock:dLock(p),behaviour:dBeh(),agent:await dAgent()});
   net.sess[p.n]=sessCur(p,sp);net.lockSig[p.n]=JSON.stringify(dLock(p));
   fastStartupWarn(p,P.fastStartup);addLog('info',`PC ${p.n}: agent ulandi (${P.version||'?'})`);netRefresh()}
 async function authLogin(id,p,P){const deny=(reason,msg)=>sendRaw(id,'auth.denied',{reason,message:msg});
-  const r=klLogin(p,String(P.login||''),String(P.password||''));
+  const r=await klLogin(p,String(P.login||''),String(P.password||''));
   if(r.err){const reason=/band|oʻynayapti/.test(r.err)?'busy':/[Bb]alans/.test(r.err)?'low_balance':'bad_credentials';return deny(reason,r.err)}
   addLog('info',`PC ${p.n}: mijoz qulf ekranidan akkaunt bilan kirdi (${r.name})`);
   const now=Date.now(),sp=dSession(p,now);
@@ -2794,6 +2876,7 @@ $('#meBtn').onclick=loginModal;
 $('#themeBtn').onclick=()=>{const cur=S.settings.theme==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):S.settings.theme;S.settings.theme=cur==='dark'?'light':'dark';applyTheme();save();renderNav()};
 save();renderNav();render();
 if(S.users.some(u=>u.active!==false&&u.pass))loginModal(true);
+licGate();
 netInit();
 
 setInterval(()=>{

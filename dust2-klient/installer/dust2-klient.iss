@@ -19,6 +19,7 @@ AppId={{8C1D5E2F-7A43-4B96-9C10-2D6F3B8A5E41}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyPublisher}
+AppCopyright=Copyright (c) 2026 {#MyPublisher}
 DefaultDirName={autopf}\DUST2 Klient
 DefaultGroupName=DUST2
 DisableProgramGroupPage=yes

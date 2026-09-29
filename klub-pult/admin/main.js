@@ -4,10 +4,16 @@ const { app, BrowserWindow, Menu, shell, ipcMain, dialog } = require('electron')
 const path = require('path');
 const { execFile } = require('child_process');
 const net = require('./server');
+const lic = require('./license');
 
 // SQLite baza — native modul yuklanmasa, dastur localStorage bilan ishlashda davom etadi.
 let db = null, dbFile = '', dbErr = '';
 try { db = require('./db'); } catch (e) { dbErr = e.message || String(e); }
+
+// Operator parollari argon2id bilan hash qilinadi (native modul main jarayonda ishlaydi).
+// Yuklanmasa, index.html WebCrypto PBKDF2 ga qaytadi — kirish buzilmaydi.
+let argon2 = null;
+try { argon2 = require('@node-rs/argon2'); } catch (e) { argon2 = null; }
 
 if (!app.requestSingleInstanceLock()) app.quit();
 
@@ -37,12 +43,27 @@ function createWindow() {
 
 function toUi(ev) { if (win && !win.isDestroyed()) win.webContents.send('net:ev', ev); }
 
-ipcMain.handle('net:start', (e, port) => net.start(port, toUi).then(i => { if (i.running) allowFirewall(i.port); return i; }));
+ipcMain.handle('net:start', (e, port) => {
+  // litsenziya yoki sinov muddati tugagan boʻlsa server ochilmaydi
+  if (lic.status().state === 'expired') { net.stop(); return { running: false, port: +port || 7777, err: 'Litsenziya: muddat tugagan — kalit kiriting', ips: [], clients: 0 }; }
+  return net.start(port, toUi).then(i => { if (i.running) allowFirewall(i.port); return i; });
+});
 ipcMain.handle('net:info', () => net.info());
 ipcMain.on('net:send', (e, id, msg) => net.send(id, msg));
 ipcMain.on('net:close', (e, id) => net.close(id));
 ipcMain.handle('net:wol', (e, mac) => net.wol(mac));
 ipcMain.handle('app:version', () => app.getVersion());
+ipcMain.on('lic:status', e => { try { e.returnValue = lic.status(); } catch (err) { e.returnValue = { state: 'expired', reason: 'error', machine: '', maxPcs: 0, err: String(err.message || err) }; } });
+ipcMain.handle('lic:activate', (e, key) => lic.activate(key));
+// har soatda tekshiramiz: muddat tugasa server toʻxtaydi va oyna xabardor qilinadi
+setInterval(() => {
+  let st; try { st = lic.status(); } catch (e) { return; }
+  if (st.state === 'expired') net.stop();
+  if (win && !win.isDestroyed()) win.webContents.send('lic:changed', st);
+}, 3600e3).unref();
+ipcMain.on('pw:ok', e => { e.returnValue = !!argon2; });
+ipcMain.handle('pw:hash', (e, pw) => argon2.hash(String(pw)));
+ipcMain.handle('pw:verify', async (e, hash, pw) => { try { return await argon2.verify(String(hash), String(pw)); } catch { return false; } });
 
 // ---- SQLite baza (sinxron oʻqish preload uchun, yozish debounce) ----
 let dbReady = false;
@@ -87,6 +108,6 @@ function allowFirewall(port) {
 }
 
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
-app.whenReady().then(createWindow);
+app.whenReady().then(() => { lic.init(app.getPath('userData')); createWindow(); });
 app.on('before-quit', () => { quitting = true; net.stop(); });
 app.on('window-all-closed', () => app.quit());
