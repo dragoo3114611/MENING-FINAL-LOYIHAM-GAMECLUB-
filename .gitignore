@@ -1,0 +1,11 @@
+node_modules/
+out/
+dist/
+bin/
+obj/
+publish/
+Output/
+*.log
+.DS_Store
+# Klub Pult: build paytida ../index.html dan nusxa olinadi
+klub-pult/admin/index.html

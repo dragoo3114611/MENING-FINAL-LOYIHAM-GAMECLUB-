@@ -1,0 +1,264 @@
+<Window x:Class="Dust2Agent.Shell.LockWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="DUST2" WindowStyle="None" ResizeMode="NoResize" Topmost="True"
+        ShowInTaskbar="False" AllowsTransparency="False" Background="#101418"
+        FontFamily="Segoe UI" Cursor="Arrow">
+
+  <Window.Resources>
+    <Style x:Key="Field" TargetType="TextBox">
+      <Setter Property="Padding" Value="10,8"/>
+      <Setter Property="FontSize" Value="16"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Margin" Value="0,4,0,10"/>
+    </Style>
+    <Style x:Key="PassField" TargetType="PasswordBox">
+      <Setter Property="Padding" Value="10,8"/>
+      <Setter Property="FontSize" Value="16"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Margin" Value="0,4,0,10"/>
+    </Style>
+    <Style x:Key="Label" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Margin" Value="0,6,0,0"/>
+    </Style>
+    <Style x:Key="Primary" TargetType="Button">
+      <Setter Property="Padding" Value="18,10"/>
+      <Setter Property="FontSize" Value="15"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+  </Window.Resources>
+
+  <Grid x:Name="Root">
+    <!-- fon rasmi yoki mavzu gradienti -->
+    <Grid.Background>
+      <LinearGradientBrush x:Name="BgBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop x:Name="BgFrom" Color="#1A2233" Offset="0"/>
+        <GradientStop x:Name="BgTo" Color="#2D241F" Offset="1"/>
+      </LinearGradientBrush>
+    </Grid.Background>
+
+    <Image x:Name="Wallpaper" Stretch="UniformToFill" Visibility="Collapsed"/>
+    <Rectangle x:Name="Dim" Fill="#000000" Opacity="0.35"/>
+
+    <!--
+      Kompyuter nomi ulanish oynasida burchakda turadi. Qulf ekranida esa u
+      soat bilan bitta ustunda, katta harflar bilan ko'rsatiladi (pastdagi
+      PcNameText) — joylashuv o'zgarsa, nom ham soat bilan birga ko'chadi.
+    -->
+    <Border x:Name="PcBadge" VerticalAlignment="Top" HorizontalAlignment="Left"
+            Margin="36,28,0,0" Padding="16,8" CornerRadius="10"
+            Background="#59000000" BorderThickness="1" BorderBrush="#26FFFFFF">
+      <TextBlock x:Name="PcBadgeText" Text="PC" FontSize="20" FontWeight="Bold"
+                 Foreground="White" Opacity="0.95"/>
+    </Border>
+
+    <!-- ================= QULF EKRANI ================= -->
+    <Grid x:Name="LockPanel" Visibility="Collapsed" Margin="70,0">
+      <!--
+        Ichki tarmoq joylashuvga qarab koddan qayta teriladi (ApplyLayout):
+        "split" — yozuvlar chapda, kirish kartasi o'ngda (ikkita ustun);
+        "center"/"left" — kirish kartasi yozuvlar ostida (ikkita qator).
+      -->
+      <Grid x:Name="LockInner" VerticalAlignment="Center">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition x:Name="ColTexts" Width="1.25*"/>
+          <ColumnDefinition x:Name="ColLogin" Width="1*"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+      <StackPanel x:Name="LockTexts" VerticalAlignment="Center">
+        <TextBlock x:Name="PcNameText" Text="PC" FontSize="90" FontWeight="Bold"
+                   Foreground="White" LineHeight="96" Margin="0,0,0,6"/>
+        <TextBlock x:Name="ClockText" Text="00:00" FontSize="130" FontWeight="Light"
+                   Foreground="White" LineHeight="130"/>
+        <TextBlock x:Name="DateText" FontSize="20" Foreground="#AAB4C4" Margin="4,10,0,34"/>
+        <TextBlock x:Name="TitleText" Text="DUST2 GAMEZONE" FontSize="36" FontWeight="Bold"
+                   Foreground="#E0A84E"/>
+        <TextBlock x:Name="SubText" FontSize="17" Foreground="White" Opacity="0.9"
+                   Margin="0,10,0,0" TextWrapping="Wrap" MaxWidth="520"/>
+      </StackPanel>
+
+      <Border x:Name="LoginCard" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right"
+              Width="340" Padding="26" CornerRadius="14" Background="#B80E121A" BorderThickness="1"
+              BorderBrush="#24FFFFFF">
+        <StackPanel>
+          <TextBlock x:Name="CardTitle" Text="Akkaunt bilan kirish" FontSize="22" FontWeight="SemiBold"
+                     Foreground="White"/>
+          <TextBlock x:Name="CardSub" Text="Balansingizdan vaqt yechiladi" FontSize="13"
+                     Foreground="#AAB4C4" Margin="0,4,0,16"/>
+
+          <TextBlock x:Name="DueText" FontSize="30" FontWeight="Bold" Foreground="White"
+                     Visibility="Collapsed" Margin="0,0,0,14"/>
+
+          <StackPanel x:Name="LoginFields">
+            <TextBlock Text="Login" Style="{StaticResource Label}" Foreground="#AAB4C4"/>
+            <TextBox x:Name="LoginBox" Style="{StaticResource Field}"/>
+            <TextBlock Text="Parol" Style="{StaticResource Label}" Foreground="#AAB4C4"/>
+            <PasswordBox x:Name="PassBox" Style="{StaticResource PassField}"/>
+            <TextBlock x:Name="LoginError" Foreground="#E5484D" FontSize="13" TextWrapping="Wrap"
+                       Margin="0,0,0,8"/>
+            <Button x:Name="LoginButton" Content="Kirish" Style="{StaticResource Primary}"
+                    Background="#E0A84E" Foreground="#1B1407" Click="Login_Click"/>
+            <TextBlock Text="Akkauntingiz yo'qmi? Kassada ochib beriladi" FontSize="12"
+                       Foreground="#AAB4C4" HorizontalAlignment="Center" Margin="0,12,0,0"/>
+          </StackPanel>
+        </StackPanel>
+      </Border>
+      </Grid>
+    </Grid>
+
+    <!-- ================= ULANISH OYNASI ================= -->
+    <Border x:Name="SetupPanel" Width="560" Padding="30" CornerRadius="14"
+            Background="#B80E121A" BorderThickness="1" BorderBrush="#24FFFFFF"
+            VerticalAlignment="Center" HorizontalAlignment="Center">
+      <StackPanel>
+        <TextBlock x:Name="SetupTitle" Text="Adminga ulanish" FontSize="26" FontWeight="Bold"
+                   Foreground="White"/>
+        <Border x:Name="SvcWarn" Visibility="Collapsed" Background="#3DE5484D" CornerRadius="8"
+                Padding="14,10" Margin="0,12,0,0" BorderThickness="1" BorderBrush="#66E5484D">
+          <StackPanel>
+            <TextBlock Text="Xizmat bilan aloqa yo'q" FontWeight="SemiBold" Foreground="#FFB4B6"
+                       FontSize="14"/>
+            <TextBlock x:Name="SvcWarnText" TextWrapping="Wrap" FontSize="13" Foreground="#E7C4C5"
+                       Margin="0,4,0,0"
+                       Text="DUST2 klient agent xizmati ishlamayapti. Ulanish saqlanmaydi. Xizmatni ishga tushiring: services.msc → DUST2 klient agent."/>
+          </StackPanel>
+        </Border>
+
+        <TextBlock x:Name="SetupHint" TextWrapping="Wrap" FontSize="14" Foreground="#AAB4C4"
+                   Margin="0,8,0,18"
+                   Text="Bu kompyuterni DUST2 admin dasturiga ulash uchun admin kompyuterdagi Sozlamalar → Kompyuterlar → Server manzili bo'limidagi ma'lumotlarni kiriting."/>
+
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="2*"/>
+            <ColumnDefinition Width="12"/>
+            <ColumnDefinition Width="1*"/>
+          </Grid.ColumnDefinitions>
+          <StackPanel>
+            <TextBlock Text="Admin kompyuter IP manzili" Style="{StaticResource Label}" Foreground="#AAB4C4"/>
+            <TextBox x:Name="HostBox" Style="{StaticResource Field}" Text="192.168.1.10"/>
+          </StackPanel>
+          <StackPanel Grid.Column="2">
+            <TextBlock Text="Port" Style="{StaticResource Label}" Foreground="#AAB4C4"/>
+            <TextBox x:Name="PortBox" Style="{StaticResource Field}" Text="7777"/>
+          </StackPanel>
+        </Grid>
+
+        <StackPanel x:Name="CodeRow">
+          <TextBlock Text="Ulanish kodi (6 ta raqam)" Style="{StaticResource Label}" Foreground="#AAB4C4"/>
+          <TextBox x:Name="CodeBox" Style="{StaticResource Field}" MaxLength="6"/>
+        </StackPanel>
+
+        <TextBlock Text="Bu kompyuter nomi" Style="{StaticResource Label}" Foreground="#AAB4C4"/>
+        <TextBox x:Name="NameBox" Style="{StaticResource Field}"/>
+
+        <TextBlock x:Name="SetupStatus" TextWrapping="Wrap" FontSize="13" Foreground="#E5484D"
+                   MinHeight="34" Margin="0,4,0,8"/>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+          <Button x:Name="UnpairButton" Content="Uzish" Style="{StaticResource Primary}"
+                  Background="Transparent" Foreground="#E5484D" Margin="0,0,10,0"
+                  Visibility="Collapsed" Click="Unpair_Click"/>
+          <Button x:Name="ConnectButton" Content="Ulanish" Style="{StaticResource Primary}"
+                  Background="#E0A84E" Foreground="#1B1407" Click="Connect_Click"/>
+        </StackPanel>
+
+        <TextBlock x:Name="SetupFoot" FontSize="12" Foreground="#8892A4" Margin="0,16,0,0"
+                   HorizontalAlignment="Center"/>
+      </StackPanel>
+    </Border>
+
+    <!-- ================= PASTKI QATOR ================= -->
+    <Grid x:Name="Footer" VerticalAlignment="Bottom" Margin="70,0,70,26">
+      <TextBlock x:Name="FootLeft" Foreground="#AAB4C4" FontSize="13" HorizontalAlignment="Left"/>
+      <TextBlock x:Name="FootCenter" Foreground="#AAB4C4" FontSize="13" HorizontalAlignment="Center"/>
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+        <TextBlock x:Name="FootRight" Foreground="#AAB4C4" FontSize="13" VerticalAlignment="Center"/>
+        <Button x:Name="GearButton" Content="⚙  Ulanish sozlamalari" Background="#33FFFFFF"
+                BorderThickness="1" BorderBrush="#40FFFFFF" Foreground="White" FontSize="13"
+                Padding="12,7" Margin="14,0,0,0" Cursor="Hand"
+                ToolTip="Admin IP manzili va kompyuter nomini kiritish" Click="Gear_Click"/>
+      </StackPanel>
+    </Grid>
+
+    <!-- ================= XABAR VA TOAST ================= -->
+    <Border x:Name="ToastBox" Visibility="Collapsed" VerticalAlignment="Top" HorizontalAlignment="Center"
+            Margin="0,40,0,0" Padding="22,14" CornerRadius="10" Background="#E60E121A"
+            BorderThickness="0,0,0,0">
+      <StackPanel>
+        <TextBlock x:Name="ToastTitle" FontSize="17" FontWeight="SemiBold" Foreground="White"/>
+        <TextBlock x:Name="ToastText" FontSize="14" Foreground="#AAB4C4" TextWrapping="Wrap"
+                   MaxWidth="520"/>
+      </StackPanel>
+    </Border>
+
+    <Grid x:Name="MessageOverlay" Visibility="Collapsed" Background="#8C000000">
+      <Border Width="480" Padding="28" CornerRadius="12" Background="#F00E121A"
+              VerticalAlignment="Center" HorizontalAlignment="Center">
+        <StackPanel>
+          <TextBlock Text="Administrator xabari" FontSize="21" FontWeight="SemiBold"
+                     Foreground="#E0A84E" Margin="0,0,0,10"/>
+          <TextBlock x:Name="MessageText" FontSize="16" Foreground="White" TextWrapping="Wrap"
+                     Margin="0,0,0,18"/>
+          <Button Content="Tushunarli" Style="{StaticResource Primary}" Background="#E0A84E"
+                  Foreground="#1B1407" HorizontalAlignment="Right" Click="MessageOk_Click"/>
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <!-- ================= KLIENT BOSHQARUVI ================= -->
+    <Grid x:Name="ActionsOverlay" Visibility="Collapsed" Background="#8C000000">
+      <Border Width="460" Padding="28" CornerRadius="12" Background="#F00E121A"
+              VerticalAlignment="Center" HorizontalAlignment="Center">
+        <StackPanel>
+          <TextBlock Text="Klient boshqaruvi" FontSize="21" FontWeight="SemiBold" Foreground="White"/>
+          <TextBlock Text="Bu oyna faqat administrator uchun." FontSize="13" Foreground="#AAB4C4"
+                     Margin="0,4,0,18"/>
+
+          <Button Content="⚙  Ulanish sozlamalari" Style="{StaticResource Primary}"
+                  Background="#33FFFFFF" Foreground="White" HorizontalAlignment="Stretch"
+                  Click="ActSetup_Click"/>
+          <TextBlock Text="Admin IP manzili, port va kompyuter nomi" FontSize="12"
+                     Foreground="#8892A4" Margin="0,4,0,14"/>
+
+          <Button Content="⏻  Klient dasturini to'xtatish" Style="{StaticResource Primary}"
+                  Background="#33E5484D" Foreground="#FFB4B6" HorizontalAlignment="Stretch"
+                  Click="ActStop_Click"/>
+          <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#8892A4" Margin="0,4,0,18"
+                     Text="Qulf ekrani yopiladi va kompyuter odatdagidek ishlaydi. Qayta ishga tushirish uchun ish stolidagi “DUST2 klient” yorlig'ini oching."/>
+
+          <Button Content="Bekor qilish" Style="{StaticResource Primary}" Background="Transparent"
+                  Foreground="White" HorizontalAlignment="Right" Click="ActCancel_Click"/>
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <!-- ================= PAROL SO'RASH ================= -->
+    <Grid x:Name="PasswordOverlay" Visibility="Collapsed" Background="#8C000000">
+      <Border Width="420" Padding="28" CornerRadius="12" Background="#F00E121A"
+              VerticalAlignment="Center" HorizontalAlignment="Center">
+        <StackPanel>
+          <TextBlock x:Name="PwTitle" Text="Xizmat paroli" FontSize="21" FontWeight="SemiBold"
+                     Foreground="White"/>
+          <TextBlock x:Name="PwSub" Text="Faqat administrator o'zgartira oladi." FontSize="13"
+                     Foreground="#AAB4C4" Margin="0,4,0,14"/>
+          <PasswordBox x:Name="ServicePassBox" Style="{StaticResource PassField}"/>
+          <TextBlock x:Name="PwError" Foreground="#E5484D" FontSize="13" Margin="0,0,0,10"/>
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Bekor qilish" Style="{StaticResource Primary}" Background="Transparent"
+                    Foreground="White" Margin="0,0,10,0" Click="PwCancel_Click"/>
+            <Button Content="Davom etish" Style="{StaticResource Primary}" Background="#E0A84E"
+                    Foreground="#1B1407" Click="PwOk_Click"/>
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Grid>
+  </Grid>
+</Window>

@@ -1,0 +1,1104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dust2.local/schemas/messages.json",
+  "title": "DUST2 agent protokoli",
+  "description": "Admin dasturi va klient agent o'rtasidagi WebSocket xabarlari. Batafsil: ../protocol.md",
+  "type": "object",
+  "required": [
+    "v",
+    "type",
+    "id",
+    "ts"
+  ],
+  "properties": {
+    "v": {
+      "const": 1
+    },
+    "type": {
+      "$ref": "#/$defs/messageType"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "ts": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "payload": {
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "$ref": "#/$defs/payloadByType"
+    }
+  ],
+  "$defs": {
+    "messageType": {
+      "enum": [
+        "ack",
+        "error",
+        "pair.request",
+        "pair.ok",
+        "pair.denied",
+        "hello",
+        "hello.ok",
+        "heartbeat",
+        "sync",
+        "session.start",
+        "session.add_time",
+        "session.pause",
+        "session.resume",
+        "session.end",
+        "session.lock",
+        "session.started",
+        "session.updated",
+        "session.ended",
+        "lock.config",
+        "lock.wallpaper",
+        "lock.wallpaper.request",
+        "theme.set",
+        "message",
+        "message.shown",
+        "auth.login",
+        "auth.ok",
+        "auth.denied",
+        "client.request_time",
+        "client.call_admin",
+        "client.unpair",
+        "client.warning_shown",
+        "process.list",
+        "process.list.result",
+        "process.kill",
+        "power.off",
+        "power.reboot",
+        "time.request",
+        "time.sync",
+        "time.synced"
+      ]
+    },
+    "sessionMode": {
+      "enum": [
+        "pre",
+        "open",
+        "acc"
+      ]
+    },
+    "sessionState": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "sessionId",
+        "mode"
+      ],
+      "properties": {
+        "sessionId": {
+          "type": "integer"
+        },
+        "mode": {
+          "$ref": "#/$defs/sessionMode"
+        },
+        "startedAt": {
+          "type": "integer"
+        },
+        "endsAt": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "remainingMs": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "rate": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "client": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "paused": {
+          "type": "boolean"
+        },
+        "due": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "lockConfig": {
+      "type": "object",
+      "properties": {
+        "theme": {
+          "type": "string"
+        },
+        "layout": {
+          "enum": [
+            "center",
+            "split",
+            "left"
+          ]
+        },
+        "valign": {
+          "enum": [
+            "top",
+            "middle",
+            "bottom"
+          ]
+        },
+        "clockSize": {
+          "type": "integer"
+        },
+        "titleSize": {
+          "type": "integer"
+        },
+        "textSize": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "clock": {
+          "type": "boolean"
+        },
+        "pcName": {
+          "type": "boolean"
+        },
+        "login": {
+          "type": "boolean"
+        },
+        "fit": {
+          "enum": [
+            "cover",
+            "contain",
+            "stretch",
+            "center"
+          ]
+        },
+        "dim": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "wallpaperHash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "behaviour": {
+      "type": "object",
+      "properties": {
+        "onExpire": {
+          "enum": [
+            "lock",
+            "off",
+            "delay"
+          ]
+        },
+        "offDelay": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blockInput": {
+          "type": "boolean"
+        },
+        "warnMin": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "showWidget": {
+          "type": "boolean"
+        }
+      }
+    },
+    "payloadByType": {
+      "oneOf": [
+        {
+          "properties": {
+            "type": {
+              "const": "ack"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "re"
+              ],
+              "properties": {
+                "re": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "required": [
+            "payload"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "error"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "code",
+                "message"
+              ],
+              "properties": {
+                "re": {
+                  "type": "string"
+                },
+                "code": {
+                  "enum": [
+                    "unauthorized",
+                    "bad_request",
+                    "not_found",
+                    "conflict",
+                    "internal"
+                  ]
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "required": [
+            "payload"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "pair.request"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "name",
+                "code"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 20
+                },
+                "code": {
+                  "type": "string",
+                  "pattern": "^[0-9]{6}$"
+                },
+                "ip": {
+                  "type": "string"
+                },
+                "mac": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                },
+                "fastStartup": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "required": [
+            "payload"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "pair.ok"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "token",
+                "pcId",
+                "name"
+              ],
+              "properties": {
+                "token": {
+                  "type": "string",
+                  "minLength": 32
+                },
+                "pcId": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "serverTime": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "required": [
+            "payload"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "pair.denied"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "reason",
+                "message"
+              ],
+              "properties": {
+                "reason": {
+                  "enum": [
+                    "bad_code",
+                    "unknown_pc",
+                    "already_paired"
+                  ]
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "required": [
+            "payload"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "hello"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "token"
+              ],
+              "properties": {
+                "token": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "ip": {
+                  "type": "string"
+                },
+                "mac": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                },
+                "fastStartup": {
+                  "type": "boolean"
+                },
+                "state": {
+                  "$ref": "#/$defs/sessionState"
+                }
+              }
+            }
+          },
+          "required": [
+            "payload"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "hello.ok"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "pcId",
+                "name",
+                "serverTime"
+              ],
+              "properties": {
+                "pcId": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "serverTime": {
+                  "type": "integer"
+                },
+                "session": {
+                  "$ref": "#/$defs/sessionState"
+                },
+                "lock": {
+                  "$ref": "#/$defs/lockConfig"
+                },
+                "behaviour": {
+                  "$ref": "#/$defs/behaviour"
+                },
+                "agent": {
+                  "$ref": "#/$defs/agentConfig"
+                }
+              }
+            }
+          },
+          "required": [
+            "payload"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "sync"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "serverTime"
+              ],
+              "properties": {
+                "serverTime": {
+                  "type": "integer"
+                },
+                "session": {
+                  "$ref": "#/$defs/sessionState"
+                },
+                "lock": {
+                  "$ref": "#/$defs/lockConfig"
+                },
+                "behaviour": {
+                  "$ref": "#/$defs/behaviour"
+                },
+                "agent": {
+                  "$ref": "#/$defs/agentConfig"
+                }
+              }
+            }
+          },
+          "required": [
+            "payload"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "session.start"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "sessionId",
+                "mode"
+              ],
+              "properties": {
+                "sessionId": {
+                  "type": "integer"
+                },
+                "mode": {
+                  "$ref": "#/$defs/sessionMode"
+                },
+                "endsAt": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "remainingMs": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "rate": {
+                  "type": "integer"
+                },
+                "client": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "required": [
+            "payload"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "session.add_time"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "sessionId"
+              ],
+              "properties": {
+                "sessionId": {
+                  "type": "integer"
+                },
+                "endsAt": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "remainingMs": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "addedMin": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "required": [
+            "payload"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "session.end"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "sessionId"
+              ],
+              "properties": {
+                "sessionId": {
+                  "type": "integer"
+                },
+                "due": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "required": [
+            "payload"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "session.lock"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "due": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "auth.login"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "login",
+                "password"
+              ],
+              "properties": {
+                "login": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "password": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "required": [
+            "payload"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "auth.ok"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "login",
+                "balance"
+              ],
+              "properties": {
+                "login": {
+                  "type": "string"
+                },
+                "balance": {
+                  "type": "integer"
+                },
+                "remainingMs": {
+                  "type": "integer"
+                },
+                "rate": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "required": [
+            "payload"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "auth.denied"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "reason"
+              ],
+              "properties": {
+                "reason": {
+                  "enum": [
+                    "bad_credentials",
+                    "low_balance",
+                    "busy"
+                  ]
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "required": [
+            "payload"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "message"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "text"
+              ],
+              "properties": {
+                "text": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          "required": [
+            "payload"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "time.sync"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "serverTime"
+              ],
+              "properties": {
+                "serverTime": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "required": [
+            "payload"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "time.synced"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "driftMs"
+              ],
+              "properties": {
+                "driftMs": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "required": [
+            "payload"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "process.list.result"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "items"
+              ],
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "pid",
+                      "exe"
+                    ],
+                    "properties": {
+                      "pid": {
+                        "type": "integer"
+                      },
+                      "exe": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "cpu": {
+                        "type": "number"
+                      },
+                      "ramMb": {
+                        "type": "number"
+                      },
+                      "protected": {
+                        "type": "boolean"
+                      },
+                      "kind": {
+                        "enum": [
+                          "sys",
+                          "shell",
+                          "app"
+                        ]
+                      },
+                      "hang": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                },
+                "cpu": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "ramUsedMb": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "ramTotalMb": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "required": [
+            "payload"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "process.kill"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "pids"
+              ],
+              "properties": {
+                "pids": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          },
+          "required": [
+            "payload"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "power.off"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "mode": {
+                  "enum": [
+                    "now",
+                    "after_session"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "lock.config"
+            },
+            "payload": {
+              "$ref": "#/$defs/lockConfig"
+            }
+          },
+          "required": [
+            "payload"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "lock.wallpaper"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "hash",
+                "mime",
+                "dataBase64"
+              ],
+              "properties": {
+                "hash": {
+                  "type": "string"
+                },
+                "mime": {
+                  "type": "string"
+                },
+                "dataBase64": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "required": [
+            "payload"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "theme.set"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "id"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "required": [
+            "payload"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "client.warning_shown"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "minutes": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "session.ended"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "sessionId": {
+                  "type": "integer"
+                },
+                "reason": {
+                  "enum": [
+                    "expired",
+                    "admin",
+                    "logout"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "session.updated"
+            },
+            "payload": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "session.started"
+            },
+            "payload": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "session.pause"
+            },
+            "payload": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "session.resume"
+            },
+            "payload": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "heartbeat"
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "message.shown"
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "client.request_time"
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "client.call_admin"
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "client.unpair"
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "process.list"
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "power.reboot"
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "time.request"
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "lock.wallpaper.request"
+            }
+          }
+        }
+      ]
+    },
+    "agentConfig": {
+      "type": "object",
+      "properties": {
+        "servicePassHash": {
+          "type": "string"
+        },
+        "unlockCombo": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

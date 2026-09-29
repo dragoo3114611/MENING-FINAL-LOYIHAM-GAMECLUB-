@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DUST2 Klient — prototip</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;500;600;700&family=Onest:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#e9ecf1;--panel:#fff;--line:#dce1e8;--ink:#1c2230;--mute:#687284;
+  --sand:#e0a84e;--sand-d:#b9822c;--blue:#4f86c6;--green:#2fa77a;--red:#d8454b;
+  --head:"Chakra Petch",Onest,system-ui,sans-serif;--body:Onest,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10141b;--panel:#171c25;--line:#2a313d;--ink:#e6e9ef;--mute:#8e97a6}}
+:root[data-theme="dark"]{--bg:#10141b;--panel:#171c25;--line:#2a313d;--ink:#e6e9ef;--mute:#8e97a6}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 var(--body)}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--sand);outline-offset:2px}
+.page{max-width:1500px;margin:0 auto;padding:18px 22px 30px}
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;margin-bottom:16px}
+.top h1{margin:0;font:700 22px var(--head)}
+.top p{margin:0;color:var(--mute);flex:1;min-width:260px}
+.top select{padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start}
+
+/* ---------- monitor ---------- */
+.monitor{background:#0b0d11;border-radius:14px;padding:12px;box-shadow:0 12px 30px rgba(0,0,0,.25)}
+.screen{position:relative;aspect-ratio:16/9;border-radius:6px;overflow:hidden;background:#000;container-type:inline-size;user-select:none}
+.themes{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.th{border:1px solid var(--line);border-radius:6px;padding:0;background:var(--bg);overflow:hidden;text-align:left}
+.th i{display:block;height:34px;position:relative}
+.th i::after{content:"";position:absolute;right:6px;bottom:6px;width:12px;height:12px;border-radius:50%;background:var(--a)}
+.th span{display:block;font-size:11px;padding:4px 5px;line-height:1.2}
+.th[aria-pressed="true"]{outline:2px solid var(--sand);outline-offset:1px}
+@media (max-width:1100px){.themes{grid-template-columns:repeat(5,minmax(0,1fr))}}
+.setup{position:absolute;inset:0;display:grid;place-items:center;background-image:var(--c-wall);color:var(--c-text)}
+.setup::before{content:"";position:absolute;inset:0;background:var(--c-overlay)}
+.setup>*{position:relative}
+.setup-card{width:52cqw;min-width:320px;background:var(--c-card);border:1px solid var(--c-line);border-radius:1.4cqw;padding:2.8cqw 3cqw;backdrop-filter:blur(10px)}
+.setup-card.narrow{width:34cqw}
+.setup-card h2{margin:0 0 .6cqw;font:700 2.6cqw var(--head)}
+.setup-card p{margin:0 0 2cqw;color:var(--c-sub);font-size:1.4cqw;line-height:1.45}
+.setup-card p b{color:var(--c-text)}
+.setup-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.2cqw 1.6cqw}
+.setup-grid .f2{grid-column:1/-1}
+.setup-card label{display:block;font-size:1.2cqw;color:var(--c-sub);margin-bottom:.4cqw}
+.setup-card input{width:100%;padding:1cqw 1.2cqw;border-radius:.7cqw;border:1px solid var(--c-line);background:var(--c-inp);color:var(--c-text);font:500 1.7cqw var(--head);outline:none}
+.setup-card input:focus{border-color:var(--c-accent)}
+.setup-card input:disabled{opacity:.6}
+.setup-status{min-height:2.2cqw;margin:1.4cqw 0 .6cqw;font-size:1.3cqw;color:var(--c-sub);display:flex;gap:.8cqw;align-items:flex-start;line-height:1.4}
+.setup-status.bad{color:#e5484d}
+.spin{flex:none;width:1.6cqw;height:1.6cqw;min-width:12px;min-height:12px;border-radius:50%;border:.25cqw solid var(--c-line);border-top-color:var(--c-accent);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:2.4s}}
+.setup-btns{display:flex;justify-content:flex-end;gap:1cqw;margin-top:1cqw}
+.setup .keep span{display:block;padding:1cqw 0;font-size:1.3cqw;color:var(--c-sub)}
+.setup-btns button{white-space:nowrap;border:0;border-radius:.7cqw;padding:1.1cqw 2.6cqw;background:var(--c-accent);color:var(--c-accent-ink);font:700 1.5cqw var(--head)}
+.setup-btns button.ghost{background:transparent;border:1px solid var(--c-line);color:var(--c-text)}
+.setup-btns button.danger{color:#e5484d;margin-right:auto}
+.setup-btns button:disabled{opacity:.5;cursor:wait}
+.setup-foot{position:absolute;left:0;right:0;bottom:2.2cqw;display:flex;justify-content:center;gap:3cqw;color:var(--c-sub);font-size:1.2cqw}
+.setup-foot b{color:var(--c-text);font-weight:600}
+.gear{border:0;background:none;color:inherit;width:2cqw;height:2cqw;min-width:18px;min-height:18px;padding:0;margin-left:.6cqw;vertical-align:middle;opacity:.7}
+.gear:hover{opacity:1}
+.gear svg{width:100%;height:100%}
+.simbox{display:grid;gap:4px;font-size:13px;background:var(--bg);border-radius:6px;padding:8px 10px}
+.simbox span{display:flex;justify-content:space-between;color:var(--mute)}
+.simbox b{color:var(--ink);font-family:var(--head);letter-spacing:.02em}
+.simbox b.ok{color:var(--green)}
+.simbox b.bad{color:var(--red)}
+.clk-bad{color:#ff8b8f;font-weight:600}
+.stand{width:22%;height:16px;margin:0 auto;background:linear-gradient(#1a1d23,#0b0d11);border-radius:0 0 8px 8px}
+.caption{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:12px;color:var(--mute);font-size:14px}
+.caption b{color:var(--ink)}
+
+/* Runpad placeholder desktop */
+.desk{position:absolute;inset:0;background:
+  radial-gradient(120% 90% at 20% 110%,#2c3b52 0,transparent 60%),
+  radial-gradient(90% 70% at 90% -10%,#3b2f45 0,transparent 55%),#151b27;display:flex;flex-direction:column}
+.desk-bar{height:6.2cqw;min-height:26px;display:flex;align-items:center;gap:1.4cqw;padding:0 2cqw;background:rgba(0,0,0,.35);color:#cdd5e3;font-size:1.3cqw}
+.desk-bar b{font:600 1.5cqw var(--head);color:#fff}
+.desk-grid{flex:1;display:grid;grid-template-columns:repeat(6,1fr);gap:1.6cqw;padding:3cqw 20cqw 3cqw 3cqw;align-content:start}
+.tile{aspect-ratio:3/4;border-radius:.8cqw;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08);display:flex;align-items:flex-end;padding:.8cqw;color:#c9d1de;font-size:1.15cqw}
+.desk-note{position:absolute;left:3cqw;bottom:2.5cqw;color:rgba(255,255,255,.55);font-size:1.25cqw;max-width:50cqw}
+
+/* timer widget */
+.widget{position:absolute;top:2cqw;right:2cqw;width:21cqw;min-width:180px;background:var(--c-wbg);border:1px solid var(--c-line);border-radius:1.2cqw;color:var(--c-text);padding:1.4cqw 1.6cqw;box-shadow:0 1.2cqw 3cqw rgba(0,0,0,.45);backdrop-filter:blur(6px);font-size:1.25cqw;cursor:grab;touch-action:none}
+.widget.dragging{cursor:grabbing}
+.w-head{display:flex;justify-content:space-between;align-items:center;gap:1cqw;color:var(--c-sub);padding-right:3.2cqw}
+.w-head b{font:600 1.35cqw var(--head);color:var(--c-text)}
+.w-min{position:absolute;top:1cqw;right:1cqw;border:0;background:var(--c-inp);color:var(--c-sub);border-radius:.5cqw;width:2.4cqw;height:2.2cqw;min-width:20px;min-height:18px;font-size:1.3cqw;line-height:1}
+.w-time{font:600 3.7cqw/1.05 var(--head);white-space:nowrap;letter-spacing:.02em;margin:.8cqw 0 .6cqw;font-variant-numeric:tabular-nums}
+.w-time.warn{color:var(--sand)} .w-time.end{color:#ff6b70}
+.w-bar{height:.45cqw;min-height:3px;border-radius:1cqw;background:var(--c-line);overflow:hidden;margin-bottom:1cqw}
+.w-bar i{display:block;height:100%;background:var(--c-accent);transition:width .4s linear}
+.w-rows{display:grid;gap:.3cqw}
+.w-rows span{display:flex;justify-content:space-between;color:var(--c-sub)}
+.w-rows b{color:var(--c-text);font-weight:600;font-variant-numeric:tabular-nums}
+.w-btns{display:grid;grid-template-columns:1fr 1fr;gap:.7cqw;margin-top:1.1cqw}
+.w-btns button{border:1px solid var(--c-line);background:var(--c-inp);color:var(--c-text);border-radius:.6cqw;padding:.7cqw .4cqw;font-size:1.1cqw;font-weight:600;white-space:nowrap}
+.w-btns button:hover{border-color:var(--c-accent)}
+.w-btns button.single{grid-column:1/-1}
+.widget.mini .w-min{position:static}
+.widget.mini{width:auto;min-width:0;padding:.7cqw 1.2cqw;border-radius:5cqw;display:flex;align-items:center;gap:1cqw}
+.widget.mini .w-full{display:none}
+.widget:not(.mini) .w-pill{display:none}
+.w-pill{font:600 2cqw var(--head);font-variant-numeric:tabular-nums}
+.offline-dot{display:inline-block;width:.8cqw;height:.8cqw;min-width:7px;min-height:7px;border-radius:50%;background:var(--green);margin-right:.5cqw;vertical-align:.05em}
+.offline .offline-dot{background:var(--red)}
+
+/* lock screen */
+.lock{position:absolute;inset:0;color:var(--c-text);background-image:var(--c-wall);transition:background .4s;display:grid;grid-template-columns:1.25fr 1fr;align-items:center;padding:0 7cqw;background-size:cover;background-position:center}
+.lock::before{content:"";position:absolute;inset:0;background:var(--c-overlay);pointer-events:none}
+.lock>*{position:relative}
+.l-clock{font:var(--c-clockw) calc(13cqw*var(--cs,1))/0.9 var(--head);text-shadow:var(--c-glow);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.l-date{font-size:calc(1.9cqw*var(--cs,1));color:var(--c-sub);margin:1.2cqw 0 3.2cqw}
+.l-title{font:700 calc(3.4cqw*var(--ts,1))/1 var(--head);letter-spacing:.06em;color:var(--c-accent)}
+.l-text{font-size:calc(1.7cqw*var(--xs,1));color:var(--c-text);opacity:.9;margin-top:1cqw;max-width:40cqw}
+.lock.lay-center{grid-template-columns:1fr;justify-items:center;text-align:center;align-content:center;gap:2.4cqw}
+.lock.lay-center .l-text{max-width:60cqw;margin-left:auto;margin-right:auto}
+.lock.lay-left{grid-template-columns:1fr;justify-items:start;align-content:center;gap:2.4cqw}
+.lock.lay-center .l-card,.lock.lay-left .l-card{justify-self:inherit;width:auto;min-width:0;display:grid;grid-template-columns:17cqw 17cqw auto;gap:1cqw;align-items:center;padding:1.4cqw 1.6cqw}
+.lock.lay-center .l-card>h2,.lock.lay-center .l-card>p,.lock.lay-center .l-card>label,.lock.lay-center .l-card>.l-hint,
+.lock.lay-left .l-card>h2,.lock.lay-left .l-card>p,.lock.lay-left .l-card>label,.lock.lay-left .l-card>.l-hint{display:none}
+.lock.lay-center .l-card input,.lock.lay-left .l-card input{margin:0}
+.lock.lay-center .l-card button,.lock.lay-left .l-card button{width:auto;padding:1cqw 2.4cqw}
+.lock.lay-center .l-card .l-err,.lock.lay-left .l-card .l-err{grid-column:1/-1;order:9;margin:0;min-height:0}
+.lock.lay-center .l-card.l-ended,.lock.lay-left .l-card.l-ended{display:block;width:34cqw}
+.lock.lay-center .l-card.l-ended>h2,.lock.lay-center .l-card.l-ended>p,.lock.lay-left .l-card.l-ended>h2,.lock.lay-left .l-card.l-ended>p{display:block}
+.lock.lay-center .l-date,.lock.lay-left .l-date{margin:.8cqw 0 1.6cqw}
+.lock.lay-center .l-date{margin-bottom:2cqw}
+.lock.v-top{align-content:start;align-items:start;padding-top:5cqw}
+.lock.v-bottom{align-content:end;align-items:end;padding-bottom:7cqw}
+.lock.lay-split.v-top,.lock.lay-split.v-bottom{align-content:stretch}
+.lk-row{display:grid;grid-template-columns:78px 1fr 40px;gap:6px;align-items:center;font-size:12.5px;color:var(--mute);margin-top:4px}
+.lk-row output{text-align:right;font-weight:600;color:var(--ink)}
+.l-card{justify-self:end;width:30cqw;min-width:230px;background:var(--c-card);border:1px solid var(--c-line);border-radius:1.4cqw;padding:2.4cqw;backdrop-filter:blur(10px)}
+.l-card h2{margin:0 0 .4cqw;font:600 2.2cqw var(--head)}
+.l-card p{margin:0 0 1.6cqw;color:var(--c-sub);font-size:1.3cqw}
+.l-card label{display:block;font-size:1.2cqw;color:var(--c-sub);margin-bottom:.4cqw}
+.l-card input{width:100%;padding:1cqw 1.2cqw;border-radius:.7cqw;border:1px solid var(--c-line);background:var(--c-inp);color:var(--c-text);font-size:1.5cqw;margin-bottom:1.2cqw;outline:none}
+.l-card input:focus{border-color:var(--c-accent)}
+.l-card button{width:100%;padding:1.1cqw;border:0;border-radius:.7cqw;background:var(--c-accent);color:var(--c-accent-ink);font:700 1.6cqw var(--head)}
+.l-card button:hover{filter:brightness(1.08)}
+.l-err{color:#e5484d;font-size:1.25cqw;min-height:1.8cqw;margin:-.4cqw 0 .6cqw}
+.l-hint{margin-top:1.2cqw;color:var(--c-sub);font-size:1.2cqw;text-align:center}
+.l-ended h2{color:#e5484d}
+.l-due{font:600 3cqw var(--head);color:var(--c-text);margin:.4cqw 0 1cqw}
+.l-foot{position:absolute;left:7cqw;right:7cqw;bottom:2.4cqw;display:flex;justify-content:space-between;gap:2cqw;color:var(--c-sub);font-size:1.2cqw}
+.l-foot b{color:var(--c-text);font-weight:600}
+.lockicon{display:inline-block;width:1.2cqw;height:1.2cqw;min-width:10px;min-height:10px;vertical-align:-.1em;margin-right:.4cqw}
+
+/* overlays inside screen */
+.s-toast{position:absolute;left:50%;top:3cqw;transform:translateX(-50%);background:var(--c-wbg);color:var(--c-text);border:1px solid var(--c-line);border-left:.5cqw solid var(--c-accent);padding:1.2cqw 2cqw;border-radius:.8cqw;font-size:1.5cqw;box-shadow:0 1cqw 3cqw rgba(0,0,0,.45);max-width:60cqw;animation:tin .25s ease-out}
+.s-toast b{font:600 1.7cqw var(--head);display:block}
+.s-toast.red{border-left-color:var(--red)} .s-toast.blue{border-left-color:var(--blue)} .s-toast.green{border-left-color:var(--green)}
+@keyframes tin{from{opacity:0;transform:translate(-50%,-1cqw)}to{opacity:1;transform:translate(-50%,0)}}
+.s-modal{position:absolute;inset:0;background:rgba(0,0,0,.55);display:grid;place-items:center}
+.s-modal .box{width:40cqw;min-width:260px;background:var(--c-wbg);color:var(--c-text);border:1px solid var(--c-line);border-radius:1.2cqw;padding:2.4cqw}
+.s-modal h3{margin:0 0 .8cqw;font:600 2.2cqw var(--head);color:var(--c-accent)}
+.s-modal p{margin:0 0 1.8cqw;font-size:1.6cqw;color:var(--c-text)}
+.s-modal button{border:0;border-radius:.7cqw;background:var(--c-accent);color:var(--c-accent-ink);font:700 1.5cqw var(--head);padding:1cqw 2.6cqw}
+.s-off{position:absolute;left:2cqw;bottom:2cqw;background:rgba(216,69,75,.92);color:#fff;border-radius:3cqw;padding:.6cqw 1.4cqw;font-size:1.2cqw;font-weight:600}
+@media (prefers-reduced-motion:reduce){.s-toast{animation:none}.w-bar i{transition:none}}
+
+/* ---------- control panel ---------- */
+.ctrl{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;position:sticky;top:14px}
+.ctrl h2{margin:0 0 2px;font:700 17px var(--head)}
+.ctrl .sub{margin:0 0 12px;color:var(--mute);font-size:13px}
+.grp{border-top:1px solid var(--line);padding:12px 0 4px}
+.grp>b{display:block;font:600 14px var(--head);margin-bottom:8px}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.btns button{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:8px 6px;font-size:13px;font-weight:500;text-align:center}
+.btns button:hover{border-color:var(--sand)}
+.btns button.wide{grid-column:1/-1}
+.btns button.go{background:#e4f4ec;border-color:var(--green);color:#1b7a56}
+.btns button.stop{background:#fbe6e7;border-color:var(--red);color:#b3343a}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .btns button.go{background:#133528;color:#6fd6ab}:root:not([data-theme="light"]) .btns button.stop{background:#3c1b1d;color:#ff9a9e}}
+.row{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.row input,.row select{flex:1;min-width:0;padding:7px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+.speed{display:flex;gap:4px}
+.speed button{flex:1;border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:6px;font-size:13px}
+.speed button[aria-pressed="true"]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.demo{font-size:12.5px;color:var(--mute);margin:4px 0 0}
+.demo code{font-family:ui-monospace,Consolas,monospace;color:var(--ink)}
+.proto{margin-top:18px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.proto h3{margin:0 0 4px;font:700 16px var(--head)}
+.proto .sub{margin:0 0 10px;color:var(--mute);font-size:13px}
+.log{max-height:240px;overflow:auto;font-size:13px;border:1px solid var(--line);border-radius:8px}
+.log div{display:grid;grid-template-columns:62px 92px 1fr;gap:10px;padding:6px 10px;border-bottom:1px solid var(--line);align-items:baseline}
+.log div:last-child{border-bottom:0}
+.log time{color:var(--mute);font-variant-numeric:tabular-nums}
+.log .dir{font-weight:600;font-size:12px}
+.log .in{color:var(--blue)} .log .out{color:var(--sand-d)} .log .sys{color:var(--mute)}
+.log code{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;word-break:break-word}
+.log .txt{color:var(--mute);display:block;font-size:12.5px}
+@media (max-width:1100px){.layout{grid-template-columns:1fr}.ctrl{position:static}}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="top">
+    <h1>DUST2 Klient — prototip</h1>
+    <p>O'yin kompyuterida nima ko'rinishini sinash uchun. O'ngdagi tugmalar admin panel yuboradigan buyruqlarni simulyatsiya qiladi. Runpad Pro o'z joyida qoladi — agent faqat qulf ekrani va taymerni boshqaradi.</p>
+    <select id="pcSel" aria-label="Kompyuter"><option>PC 07</option><option>PC 12</option><option>VIP 03</option></select>
+  </div>
+
+  <div class="layout">
+    <div>
+      <div class="monitor"><div class="screen" id="screen"></div></div>
+      <div class="stand"></div>
+      <div class="caption" id="caption"></div>
+
+      <div class="proto">
+        <h3>Admin bilan aloqa</h3>
+        <p class="sub">Agent va admin o'rtasida yuboriladigan xabarlar (kompyuter versiyasida WebSocket orqali).</p>
+        <div class="log" id="log"></div>
+      </div>
+    </div>
+
+    <aside class="ctrl" aria-label="Admin buyruqlari simulyatsiyasi">
+      <h2>Admin buyruqlari</h2>
+      <p class="sub">Adminda tugma bosilgandek klientga yuboriladi.</p>
+
+      <div class="grp"><b>Admin kompyuter (simulyatsiya)</b>
+        <div class="simbox" id="simBox"></div>
+        <div class="btns" style="margin-top:8px">
+          <button data-cmd="newCode">Yangi ulanish kodi</button>
+          <button data-cmd="reset">Klientni tozalash</button>
+        </div>
+        <p class="demo">"Klientni tozalash" — dastur birinchi marta o'rnatilgandek, ulanish oynasi qayta chiqadi. Sozlamalar paroli: <code>admin</code></p>
+      </div>
+
+      <div class="grp"><b>Seans</b>
+        <div class="btns">
+          <button class="go" data-cmd="start60">1 soat ochish</button>
+          <button class="go" data-cmd="startOpen">Ochiq vaqt</button>
+          <button data-cmd="add30">+30 daqiqa</button>
+          <button data-cmd="add60">+1 soat</button>
+          <button class="stop wide" data-cmd="end">Seansni yakunlash (qulflash)</button>
+        </div>
+      </div>
+
+      <div class="grp"><b>Hodisalar</b>
+        <div class="btns">
+          <button data-cmd="warn">5 daqiqa qoldi</button>
+          <button data-cmd="expire">Vaqtni tugatish</button>
+          <button data-cmd="expireDue">Tugadi, to'lov bor</button>
+          <button data-cmd="pause">Pauza / davom</button>
+        </div>
+        <div class="row" style="margin-top:8px"><input id="msgIn" value="Iltimos, ovozni pasaytiring" aria-label="Xabar matni"><button class="btn" data-cmd="msg" style="border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:7px 10px">Yuborish</button></div>
+      </div>
+
+      <div class="grp"><b>Kompyuter soati (simulyatsiya)</b>
+        <div class="simbox" id="clkBox"></div>
+        <div class="speed" role="group" aria-label="Soatni buzish" style="margin-top:8px"><button data-clk="-420000">−7 daq</button><button data-clk="3780000">+1 soat 3 daq</button><button data-clk="-86400000">−1 kun</button></div>
+        <div class="btns" style="margin-top:6px"><button class="wide" data-cmd="syncNow">Hozir sinxronlash</button></div>
+        <p class="demo">Soat noto'g'ri bo'lsa, agent adminga ulanganda, aloqa tiklanganda va har 10 daqiqada o'zi to'g'rilaydi. Taymer Windows soatiga bog'liq emas — soat o'zgarsa ham seans vaqti buzilmaydi.</p>
+      </div>
+
+      <div class="grp"><b>Aloqa</b>
+        <div class="btns">
+          <button data-cmd="offline" id="offBtn" class="wide">Admin aloqasini uzish</button>
+        </div>
+        <p class="demo">Aloqa uzilganda ham taymer shu kompyuterda sanaladi va vaqt tugaganda o'zi qulflaydi.</p>
+      </div>
+
+      <div class="grp"><b>Qulf ekrani yozuvlari</b>
+        <div class="speed" role="group" aria-label="Joylashuv" style="margin-bottom:6px"><button data-lkl="center" aria-pressed="false">Markazda</button><button data-lkl="split" aria-pressed="true">Chap / o'ng</button><button data-lkl="left" aria-pressed="false">Chapda</button></div>
+        <div class="speed" role="group" aria-label="Vertikal"><button data-lkvv="top" aria-pressed="false">Yuqori</button><button data-lkvv="middle" aria-pressed="true">O'rta</button><button data-lkvv="bottom" aria-pressed="false">Past</button></div>
+        <label class="lk-row">Soat<input type="range" min="50" max="160" step="10" value="100" data-lks="cs"><output>100%</output></label>
+        <label class="lk-row">Sarlavha<input type="range" min="50" max="180" step="10" value="100" data-lks="ts"><output>100%</output></label>
+        <label class="lk-row">Yozuv<input type="range" min="50" max="180" step="10" value="100" data-lks="xs"><output>100%</output></label>
+        <p class="demo">Adminda Sozlamalar → Qulf ekrani bo'limida sozlanadi va <code>lock.config</code> bilan yuboriladi.</p>
+      </div>
+
+      <div class="grp"><b>Klient mavzusi</b>
+        <div class="themes" id="themes" role="group" aria-label="Klient mavzusi"></div>
+        <p class="demo">Adminda tanlanadi va barcha kompyuterlarga yuboriladi. Aloqa yo'q bo'lsa, yetib kelmaydi.</p>
+      </div>
+
+      <div class="grp"><b>Sinov tezligi</b>
+        <div class="speed" role="group" aria-label="Vaqt tezligi">
+          <button data-speed="1" aria-pressed="true">Real</button><button data-speed="10" aria-pressed="false">×10</button><button data-speed="60" aria-pressed="false">×60</button>
+        </div>
+        <p class="demo">Akkaunt bilan kirish: <code>sanjar_07</code> / <code>1234</code> (balans 48 000 so'm) yoki <code>nightowl</code> / <code>0000</code> (6 000 so'm).</p>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const pad=n=>String(n).padStart(2,'0');
+const fmt=n=>Math.round(n).toLocaleString('ru-RU').replace(/,/g,' ');
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const MIN=60000;
+const CLIENT_THEMES=[
+ {id:'dust2',name:'Dust2 qum',wall:'radial-gradient(80% 70% at 75% 30%,#6b4a2a 0,transparent 60%),radial-gradient(90% 90% at 10% 100%,#233349 0,transparent 55%),linear-gradient(160deg,#1a2233,#2d241f)',accent:'#e0a84e',accentInk:'#1b1407',card:'rgba(14,18,26,.72)',text:'#ffffff',sub:'#aab4c4',line:'rgba(255,255,255,.14)',inp:'rgba(255,255,255,.08)',overlay:'linear-gradient(90deg,rgba(6,8,12,.78) 0,rgba(6,8,12,.45) 60%,rgba(6,8,12,.6))',wbg:'rgba(14,18,26,.92)',clockW:300,glow:'none'},
+ {id:'ct',name:'Kontr-terror',wall:'radial-gradient(70% 70% at 85% 15%,#1f5f8f 0,transparent 60%),radial-gradient(80% 80% at 0% 100%,#0f2c4a 0,transparent 60%),linear-gradient(160deg,#08111d,#0d1b2c)',accent:'#6ec3ff',accentInk:'#04121f',card:'rgba(8,20,34,.74)',text:'#eef6ff',sub:'#9db4cc',line:'rgba(110,195,255,.25)',inp:'rgba(110,195,255,.08)',overlay:'linear-gradient(90deg,rgba(3,8,15,.75),rgba(3,8,15,.35))',wbg:'rgba(8,18,30,.93)',clockW:400,glow:'0 0 1.6cqw rgba(110,195,255,.35)'},
+ {id:'terror',name:'Terror',wall:'radial-gradient(70% 60% at 80% 25%,#7a2d12 0,transparent 60%),radial-gradient(80% 80% at 5% 100%,#3a1a10 0,transparent 60%),linear-gradient(160deg,#130b08,#1f120c)',accent:'#ff7a3d',accentInk:'#200a02',card:'rgba(26,12,8,.74)',text:'#fff4ec',sub:'#caa996',line:'rgba(255,122,61,.28)',inp:'rgba(255,122,61,.08)',overlay:'linear-gradient(90deg,rgba(10,4,2,.75),rgba(10,4,2,.35))',wbg:'rgba(24,11,7,.93)',clockW:600,glow:'0 0 1.6cqw rgba(255,122,61,.35)'},
+ {id:'neon',name:'Kiber neon',wall:'radial-gradient(70% 60% at 80% 20%,#5b1a7a 0,transparent 60%),radial-gradient(70% 80% at 0% 100%,#0e4a6b 0,transparent 60%),linear-gradient(160deg,#0b0a18,#150b24)',accent:'#ff4fd8',accentInk:'#1a0418',card:'rgba(20,10,34,.72)',text:'#f5ecff',sub:'#b7a6d6',line:'rgba(255,79,216,.35)',inp:'rgba(255,79,216,.08)',overlay:'linear-gradient(90deg,rgba(5,3,12,.7),rgba(5,3,12,.3))',wbg:'rgba(16,8,28,.93)',clockW:500,glow:'0 0 2cqw rgba(255,79,216,.6)'},
+ {id:'light',name:'Yorug\' minimal',wall:'radial-gradient(70% 70% at 85% 10%,#ffffff 0,transparent 60%),linear-gradient(160deg,#d9e2ee,#f3efe8)',accent:'#2e5bd8',accentInk:'#ffffff',card:'rgba(255,255,255,.8)',text:'#172033',sub:'#5c6778',line:'rgba(20,30,50,.14)',inp:'rgba(20,30,50,.05)',overlay:'linear-gradient(90deg,rgba(255,255,255,.5),rgba(255,255,255,.1))',wbg:'rgba(255,255,255,.95)',clockW:200,glow:'none'}];
+function applyTheme(id){const t=CLIENT_THEMES.find(x=>x.id===id)||CLIENT_THEMES[0];const el=$('#screen');
+  const v={wall:t.wall,accent:t.accent,'accent-ink':t.accentInk,card:t.card,text:t.text,sub:t.sub,line:t.line,inp:t.inp,overlay:t.overlay,wbg:t.wbg,clockw:t.clockW,glow:t.glow};
+  Object.entries(v).forEach(([k,val])=>el.style.setProperty('--c-'+k,val));
+  document.querySelectorAll('[data-th]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.th===t.id))}
+
+const ACCOUNTS={sanjar_07:{pass:'1234',balance:48000},nightowl:{pass:'0000',balance:6000}};
+const LOCK_ICON='<svg class="lockicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+
+/* virtual clock so the countdown can be sped up */
+let speed=1,vBase=Date.now(),rBase=Date.now();
+const vnow=()=>vBase+(Date.now()-rBase)*speed;
+function setSpeed(s){vBase=vnow();rBase=Date.now();speed=s}
+
+const st={lk:{layout:'split',valign:'middle',cs:100,ts:100,xs:100},theme:'dust2',pc:'PC 07',rate:10000,online:true,session:null,ended:null,toast:null,modal:null,mini:false,pos:null,loginErr:''};
+/* session: {mode:'pre'|'open'|'acc', start, end (pre/acc), pausedAt, pausedFor, login, balance} */
+
+/* ================= Adminga ulanish (IP qo'lda kiritiladi) ================= */
+const SIM={ip:'192.168.1.10',port:7777,code:'482913',adminPass:'admin',myIp:'192.168.1.107',myMac:'00:1A:2B:3C:4D:07'};
+const CONN_KEY='dust2-klient-ulanish';
+const conn={paired:false,ip:'',port:'7777',code:'',name:'PC 07',phase:'form',err:'',editing:false,askPass:false,passErr:''};
+try{const c=JSON.parse(localStorage.getItem(CONN_KEY)||'null');if(c&&c.ip){Object.assign(conn,{paired:true,ip:c.ip,port:String(c.port),name:c.name||'PC 07'});st.pc=conn.name}}catch(e){}
+const saveConn=()=>{try{conn.paired?localStorage.setItem(CONN_KEY,JSON.stringify({ip:conn.ip,port:+conn.port,name:conn.name})):localStorage.removeItem(CONN_KEY)}catch(e){}};
+const validIp=v=>/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.test(v)&&v.split('.').every(n=>+n<=255);
+function setupHtml(){
+  const ed=conn.editing;
+  if(conn.askPass)return `<div class="setup"><div class="setup-card narrow"><h2>Ulanish sozlamalari</h2><p>Faqat administrator o'zgartira oladi.</p>
+    <label for="spw">Administrator paroli</label><input id="spw" type="password" autocomplete="off">
+    <div class="l-err">${esc(conn.passErr)}</div>
+    <div class="setup-btns"><button class="ghost" data-act="passCancel">Bekor qilish</button><button data-act="passOk">Davom etish</button></div></div></div>`;
+  const busy=conn.phase==='connecting';
+  return `<div class="setup"><div class="setup-card">
+    <h2>${ed?'Ulanish sozlamalari':'Adminga ulanish'}</h2>
+    <p>${ed?'Admin kompyuter IP manzili o\'zgargan bo\'lsa, yangisini kiriting.':'Bu kompyuterni DUST2 admin dasturiga ulash uchun admin kompyuterdagi <b>Sozlamalar → Kompyuterlar → Server manzili</b> bo\'limidagi ma\'lumotlarni kiriting.'}</p>
+    <div class="setup-grid">
+      <div class="f2"><label for="sIp">Admin kompyuter IP manzili</label><input id="sIp" inputmode="decimal" placeholder="192.168.1.10" value="${esc(conn.ip)}" ${busy?'disabled':''}></div>
+      <div><label for="sPort">Port</label><input id="sPort" inputmode="numeric" value="${esc(conn.port)}" ${busy?'disabled':''}></div>
+      ${ed?'<div class="keep"><label>Ulanish kodi</label><span>Kerak emas — maxfiy kalit saqlangan</span></div>':`<div><label for="sCode">Ulanish kodi</label><input id="sCode" inputmode="numeric" maxlength="7" placeholder="6 ta raqam" value="${esc(conn.code)}" ${busy?'disabled':''}></div>`}
+      <div class="f2"><label for="sName">Bu kompyuter nomi</label><input id="sName" value="${esc(conn.name)}" ${busy?'disabled':''}></div>
+    </div>
+    <div class="setup-status ${conn.err?'bad':busy?'busy':''}" role="status">${busy?`<span class="spin"></span>${esc(conn.ip)}:${esc(conn.port)} ga ulanmoqda…`:conn.err?esc(conn.err):''}</div>
+    <div class="setup-btns">${ed?`<button class="ghost danger" data-act="unpair">Uzish</button><button class="ghost" data-act="editCancel">Bekor qilish</button>`:''}<button data-act="connect" ${busy?'disabled':''}>${ed?'Saqlash va ulanish':'Ulanish'}</button></div>
+    </div>
+    <div class="setup-foot"><span>Bu kompyuter: <b>${SIM.myIp}</b></span><span>MAC: <b>${SIM.myMac}</b></span><span>Klient versiyasi 0.1</span></div></div>`}
+function doConnect(){
+  const ip=($('#sIp').value||'').trim(),port=($('#sPort').value||'').trim(),code=($('#sCode').value||'').replace(/\s/g,''),name=($('#sName').value||'').trim();
+  Object.assign(conn,{ip,port,code,name,err:''});
+  if(!validIp(ip)){conn.err='IP manzil noto\'g\'ri. Masalan: 192.168.1.10';render();$('#sIp').focus();return}
+  if(!/^\d+$/.test(port)||+port<1||+port>65535){conn.err='Port 1 dan 65535 gacha son bo\'lishi kerak';render();$('#sPort').focus();return}
+  if(!conn.editing&&!/^\d{6}$/.test(code)){conn.err='Ulanish kodi 6 ta raqamdan iborat';render();$('#sCode').focus();return}
+  if(!name){conn.err='Kompyuter nomini kiriting';render();$('#sName').focus();return}
+  conn.phase='connecting';render();log('sys','connect',`ws://${ip}:${port} ga ulanishga urinish`);
+  setTimeout(()=>{conn.phase='form';
+    if(ip!==SIM.ip||+port!==SIM.port){conn.err=`${ip}:${port} manzilida admin topilmadi. IP va portni tekshiring, admin dasturi ochiqligiga va Windows Firewall ${port}-portga ruxsat berganiga ishonch hosil qiling.`;log('sys','connect.failed',`${ip}:${port} javob bermadi`);render();return}
+    if(!conn.editing&&code!==SIM.code){conn.err='Ulanish kodi noto\'g\'ri. Admin kompyuterda ko\'rsatilgan kodni kiriting.';log('in','pair.denied','Kod mos kelmadi');render();return}
+    const first=!conn.editing;
+    conn.paired=true;conn.editing=false;conn.code='';st.pc=name;st.online=true;$('#offBtn').textContent='Admin aloqasini uzish';saveConn();
+    if(first){send(`pair.request {name:"${name}", ip:"${SIM.myIp}", mac:"${SIM.myMac}"}`,'Kod bilan birga yuborildi');log('in','pair.ok {token}','Admin kompyuterni qo\'shdi — maxfiy kalit saqlandi, keyingi safar kod so\'ralmaydi')}
+    else log('in','hello.ok','Yangi manzil bilan qayta ulandi');
+    log('in','lock.config {theme, title, text, clock, login, wallpaper}','Qulf ekrani sozlamalari va mavzu olindi');
+    setTimeout(()=>timeSync('Ulanishda soatni tekshirish'),600);
+    showToast('Adminga ulandi',`${ip}:${port} · ${name}`,'green');render()},1400)}
+/* ---- soat sinxronizatsiyasi ---- */
+const clk={offset:0,lastSync:null,lastFix:0};
+const localNow=()=>vnow()+clk.offset;
+const fmtDrift=ms=>{const a=Math.abs(ms),sg=ms<0?'−':'+';const m=Math.round(a/MIN);if(m>=1440)return `${sg}${Math.floor(m/1440)} kun ${Math.round((m%1440)/60)} soat`;if(m>=60)return `${sg}${Math.floor(m/60)} soat ${m%60} daq`;if(m>=1)return `${sg}${m} daq`;return `${sg}${Math.round(a/1000)} soniya`};
+function timeSync(reason){if(!conn.paired||!st.online)return false;
+  const server=new Date(vnow());const drift=clk.offset;
+  log('out','time.request',reason||'Admin soatini so\'rash');
+  log('in',`time.sync {server:"${server.toLocaleDateString('ru-RU')} ${pad(server.getHours())}:${pad(server.getMinutes())}:${pad(server.getSeconds())}"}`,'Admin kompyuter vaqti');
+  if(Math.abs(drift)>=1000){clk.offset=0;clk.lastFix=drift;log('sys','set_system_time',`Windows soati to'g'rilandi: ${fmtDrift(-drift)} (farq ${fmtDrift(drift)} edi)`);send(`time.synced {drift_ms:${drift}}`,`Soat farqi ${fmtDrift(drift)} tuzatildi`);showToast('Soat sinxronlandi',`Kompyuter soati admin bilan moslandi (${fmtDrift(drift)} farq tuzatildi)`,'green')}
+  else send('time.synced {drift_ms:0}','Soat to\'g\'ri');
+  clk.lastSync=vnow();renderClk();render();return true}
+function renderClk(){const el=$('#clkBox');if(!el)return;const l=new Date(localNow()),a=new Date(vnow());const t=d=>`${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  el.innerHTML=`<span>Admin vaqti <b>${t(a)}</b></span><span>Shu kompyuter soati <b class="${clk.offset?'bad':'ok'}">${t(l)}${clk.offset?' ('+fmtDrift(clk.offset)+')':''}</b></span><span>Oxirgi sinxron <b>${clk.lastSync?t(new Date(clk.lastSync)):'—'}</b></span>`}
+function log(dir,code,txt){const el=document.createElement('div');const d=new Date(vnow());
+  el.innerHTML=`<time>${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}</time><span class="dir ${dir}">${dir==='in'?'admin → PC':dir==='out'?'PC → admin':'agent'}</span><span><code>${esc(code)}</code>${txt?`<span class="txt">${esc(txt)}</span>`:''}</span>`;
+  $('#log').prepend(el);while($('#log').children.length>60)$('#log').lastChild.remove()}
+function recv(code,txt,fn){if(!conn.paired){log('sys','(ulanmagan)',`Klient hali adminga ulanmagan — "${code}" qabul qilinmadi`);showToast('Adminga ulanmagan','Avval admin IP manzilini kiriting','red');return}if(!st.online){log('sys','(yetib kelmadi)',`Aloqa yo'q — "${code}" buyrug'i qabul qilinmadi`);showToast('Aloqa yo\'q','Admin buyrug\'i yetib kelmadi','red');return}log('in',code,txt);fn()}
+function send(code,txt){if(!conn.paired)return;if(!st.online){log('sys','(navbatda)',`Aloqa tiklanganda yuboriladi: ${code}`);return}log('out',code,txt)}
+
+function showToast(title,text,color,ms){st.toast={title,text,color};render();clearTimeout(showToast.h);showToast.h=setTimeout(()=>{st.toast=null;render()},ms||4500)}
+
+function elapsed(s){const now=vnow();return (s.pausedAt||now)-s.start-(s.pausedFor||0)}
+function left(s){return s.end-((s.pausedAt||vnow())-(s.pausedFor||0))}
+const hms=ms=>{ms=Math.max(0,ms);const t=Math.floor(ms/1000);return `${pad(Math.floor(t/3600))}:${pad(Math.floor(t/60)%60)}:${pad(t%60)}`};
+const hhmm=t=>{const d=new Date(t);return `${pad(d.getHours())}:${pad(d.getMinutes())}`};
+
+/* ---------- screens ---------- */
+function lockHtml(){
+  const d=new Date(localNow());
+  const WD=['yakshanba','dushanba','seshanba','chorshanba','payshanba','juma','shanba'],MO=['yanvar','fevral','mart','aprel','may','iyun','iyul','avgust','sentabr','oktabr','noyabr','dekabr'];
+  const date=`${d.getDate()}-${MO[d.getMonth()]}, ${WD[d.getDay()]}`;
+  const e=st.ended;
+  const card=e?`<div class="l-card l-ended"><h2>Vaqtingiz tugadi</h2>
+      ${e.due?`<p>To'lanmagan summa</p><div class="l-due">${fmt(e.due)} so'm</div><p>Iltimos, administratorga to'lang.</p>`:`<p>Davom etish uchun vaqt oling yoki akkauntingiz bilan kiring.</p>`}
+      ${e.due?'':`<label for="lg">Login</label><input id="lg" autocomplete="off" placeholder="Login"><label for="pw">Parol</label><input id="pw" type="password" placeholder="Parol"><div class="l-err" id="lerr">${esc(st.loginErr)}</div><button data-act="login">Kirish</button>`}</div>`
+    :`<div class="l-card"><h2>Akkaunt bilan kirish</h2><p>Balansingizdan vaqt yechiladi</p>
+      <label for="lg">Login</label><input id="lg" autocomplete="off" placeholder="Login"><label for="pw">Parol</label><input id="pw" type="password" placeholder="Parol">
+      <div class="l-err" id="lerr">${esc(st.loginErr)}</div><button data-act="login">Kirish</button>
+      <div class="l-hint">Akkauntingiz yo'qmi? Kassada ochib beriladi</div></div>`;
+  return `<div class="lock lay-${st.lk.layout} v-${st.lk.valign}" style="--cs:${st.lk.cs/100};--ts:${st.lk.ts/100};--xs:${st.lk.xs/100}">
+    <div><div class="l-clock">${pad(d.getHours())}:${pad(d.getMinutes())}</div><div class="l-date">${date}</div>
+      <div class="l-title">DUST2 GAMEZONE</div><div class="l-text">Vaqt olish uchun administratorga murojaat qiling</div></div>
+    ${card}
+    <div class="l-foot"><span><b>${esc(st.pc)}</b> · qulflangan</span><span>${LOCK_ICON}Klaviatura va sichqoncha bloklangan — faqat kirish maydoni ishlaydi</span><span class="${st.online?'':'offline'}">${clk.offset?`<span class="clk-bad">Soat farqi ${fmtDrift(clk.offset)}</span> · `:''}<span class="offline-dot"></span>${st.online?`Admin: ${esc(conn.ip)}`:'Admin bilan aloqa yo\'q'} <button class="gear" data-act="settings" aria-label="Ulanish sozlamalari" title="Ulanish sozlamalari"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button></span></div>
+  </div>`}
+
+function widgetParts(s){
+  let time,rows,prog=0,cls='';
+  if(s.mode==='open'){const el=elapsed(s);time=hms(el);
+    rows=`<span>Rejim <b>Ochiq vaqt</b></span><span>Ochildi <b>${hhmm(s.start)}</b></span><span>Hisob <b>${fmt(Math.ceil(el/MIN*st.rate/60/100)*100)} so'm</b></span>`;prog=100}
+  else{const lf=left(s);const tot=s.end-s.start;time=hms(lf);prog=Math.max(0,Math.min(100,lf/tot*100));cls=lf<=MIN?'end':lf<=5*MIN?'warn':'';
+    const endAt=s.pausedAt?'to\'xtatilgan':hhmm(localNow()+lf);
+    rows=s.mode==='acc'
+      ?`<span>Akkaunt <b>${esc(s.login)}</b></span><span>Balans <b>${fmt(Math.max(0,Math.ceil(lf/3600000*st.rate/100)*100))} so'm</b></span><span>Tugaydi <b>${endAt}</b></span>`
+      :`<span>Ochildi <b>${hhmm(s.start)}</b></span><span>Tugaydi <b>${endAt}</b></span><span>Tarif <b>${fmt(st.rate)} so'm/soat</b></span>`}
+  return{time,rows,prog,cls,status:s.pausedAt?'Pauza':st.online?'Onlayn':'Oflayn'}}
+function deskHtml(){
+  const s=st.session;const games=['Counter-Strike 2','Dota 2','Valorant','PUBG','Fortnite','Apex Legends','EA FC','Warface','Minecraft','GTA V','Rocket League','Brawlhalla'];
+  const {time,rows,prog,cls,status}=widgetParts(s);
+  const posStyle=st.pos?`left:${st.pos.x}%;top:${st.pos.y}%;right:auto`:'';
+  return `<div class="desk">
+    <div class="desk-bar"><b>Runpad Pro</b><span>O'yinlar</span><span>Dasturlar</span><span>Internet</span></div>
+    <div class="desk-grid">${games.map(g=>`<div class="tile">${g}</div>`).join('')}</div>
+    <div class="desk-note">Bu joyda Runpad Pro qobig'i ishlaydi — agent unga tegmaydi, faqat ustida taymer turadi.</div>
+  </div>
+  <div class="widget ${st.mini?'mini':''} ${st.online?'':'offline'}" id="widget" style="${posStyle}" role="region" aria-label="Seans taymeri">
+    <span class="w-pill"><span class="offline-dot"></span><span id="wPill">${time}</span></span>
+    <div class="w-full">
+      <div class="w-head"><b>${esc(st.pc)}</b><span><span class="offline-dot"></span><span id="wStat">${status}</span></span></div>
+      <div class="w-time ${cls}" id="wTime">${time}</div>
+      <div class="w-bar"><i id="wBar" style="width:${prog}%"></i></div>
+      <div class="w-rows" id="wRows">${rows}</div>
+      <div class="w-btns">${s.mode==='acc'?'<button data-act="more">Vaqt so\'rash</button><button data-act="logout">Chiqish</button>':'<button data-act="more" class="single">Vaqt so\'rash</button>'}</div>
+    </div>
+    <button class="w-min" data-act="mini" aria-label="${st.mini?'Kattalashtirish':'Kichraytirish'}" title="${st.mini?'Kattalashtirish':'Kichraytirish'}">${st.mini?'▢':'–'}</button>
+  </div>
+  ${st.online?'':'<div class="s-off">Admin bilan aloqa yo\'q — vaqt shu kompyuterda sanalmoqda</div>'}`}
+
+function render(){
+  const scr=$('#screen');const focusId=document.activeElement&&scr.contains(document.activeElement)?document.activeElement.id:null;
+  const vals={lg:$('#lg')?.value,pw:$('#pw')?.value};
+  let h=(!conn.paired||conn.editing||conn.askPass)?setupHtml():st.session?deskHtml():lockHtml();
+  if(st.toast)h+=`<div class="s-toast ${st.toast.color||''}"><b>${esc(st.toast.title)}</b>${esc(st.toast.text)}</div>`;
+  if(st.modal)h+=`<div class="s-modal"><div class="box"><h3>Administrator xabari</h3><p>${esc(st.modal)}</p><button data-act="okmsg">Tushunarli</button></div></div>`;
+  scr.innerHTML=h;
+  if(vals.lg!=null&&$('#lg'))$('#lg').value=vals.lg;if(vals.pw!=null&&$('#pw'))$('#pw').value=vals.pw;
+  if(focusId&&document.getElementById(focusId))document.getElementById(focusId).focus();
+  const s=st.session;
+  $('#caption').innerHTML=(!conn.paired||conn.editing||conn.askPass)?`<span>Holat: <b>${conn.paired?'Ulanish sozlamalari':'Adminga ulanmagan'}</b></span><span>Admin IP manzili kiritilmaguncha kompyuterni ishlatib bo'lmaydi</span>`:s?`<span>Holat: <b>${s.mode==='open'?'Ochiq vaqt':s.mode==='acc'?'Akkaunt seansi':'Oldindan to\'langan'}</b></span><span>Ekranda: <b>Runpad + taymer</b></span><span>Taymerni sichqoncha bilan surish mumkin</span>`
+    :`<span>Holat: <b>${st.ended?'Vaqt tugagan':'Qulflangan'}</b></span><span>Ekranda: <b>Qulf ekrani</b></span><span>Runpad orqada ishlab turadi, lekin ko'rinmaydi va bosib bo'lmaydi</span>`;
+  bindDrag()}
+
+/* only update numbers each second (keeps inputs and drag smooth) */
+function tick(){
+  if(!conn.paired||conn.editing||conn.askPass)return;
+  const s=st.session;
+  if(s){
+    if(s.mode!=='open'&&!s.pausedAt){const lf=left(s);
+      if(!s.warned&&lf<=5*MIN&&lf>0){s.warned=true;showToast('5 daqiqa qoldi','Vaqt qo\'shish uchun administratorga murojaat qiling yoki "Vaqt so\'rash" tugmasini bosing');send('client.warning_shown',`5 daqiqa qoldi`)}
+      if(lf<=0){const due=s.due||0;lockNow(due,'Vaqt tugadi');return}}
+    const P=widgetParts(s);const t=$('#wTime');if(!t){render();return}
+    t.textContent=P.time;t.className='w-time '+P.cls;$('#wPill').textContent=P.time;$('#wBar').style.width=P.prog+'%';$('#wStat').textContent=P.status;
+    if($('#wRows').innerHTML!==P.rows)$('#wRows').innerHTML=P.rows;return}
+  if(!document.activeElement||!$('#screen').contains(document.activeElement))render();
+  else{const c=$('.l-clock');if(c){const d=new Date(localNow());c.textContent=`${pad(d.getHours())}:${pad(d.getMinutes())}`}}}
+
+function lockNow(due,reason){const s=st.session;
+  if(s&&s.mode==='acc'){const used=Math.min(s.balance,Math.ceil(elapsed(s)/MIN*st.rate/60));send('session.ended',`${s.login}: balansdan ${fmt(used)} so'm yechildi`)}
+  else if(s)send('session.ended',`${reason}${due?` · to'lanmagan ${fmt(due)} so'm`:''}`);
+  st.session=null;st.ended={due};st.mini=false;log('sys','lock_screen',`${reason} — ekran qulflandi, kiritish bloklandi`);render()}
+
+/* ---------- admin commands ---------- */
+function renderSim(){$('#simBox').innerHTML=`<span>IP manzil <b>${SIM.ip}</b></span><span>Port <b>${SIM.port}</b></span><span>Ulanish kodi <b>${SIM.code.slice(0,3)} ${SIM.code.slice(3)}</b></span><span>Holat <b class="${conn.paired?'ok':''}">${conn.paired?'Ulangan: '+esc(conn.name):'Kutilmoqda'}</b></span>`}
+const cmds={
+  syncNow:()=>{if(!conn.paired){showToast('Adminga ulanmagan','Avval IP kiriting','red');return}if(!st.online){log('sys','(yetib kelmadi)','Aloqa yo\'q — soatni sinxronlab bo\'lmaydi, taymer baribir to\'g\'ri sanaydi');showToast('Aloqa yo\'q','Aloqa tiklanganda soat sinxronlanadi','red');return}timeSync('Qo\'lda sinxronlash')},
+  newCode:()=>{SIM.code=String(Math.floor(100000+Math.random()*900000));renderSim();log('sys','(admin)','Yangi ulanish kodi yaratildi — ulangan kompyuterlarga ta\'sir qilmaydi')},
+  reset:()=>{conn.paired=false;conn.editing=false;conn.askPass=false;conn.ip='';conn.code='';conn.err='';st.session=null;st.ended=null;st.online=true;saveConn();$('#log').innerHTML='';log('sys','first_run','Klient tozalandi — admin manzili kiritilmagan');render()},
+  start60:()=>recv('session.start {mode:"prepaid", minutes:60}','Operator 1 soat ochdi',()=>{st.ended=null;st.session={mode:'pre',start:vnow(),end:vnow()+60*MIN};send('session.started','Qulf ekrani yopildi, taymer boshlandi');render()}),
+  startOpen:()=>recv('session.start {mode:"open"}','Operator ochiq vaqt boshladi',()=>{st.ended=null;st.session={mode:'open',start:vnow()};send('session.started','Ochiq vaqt — taymer yuqoriga sanaydi');render()}),
+  add30:()=>addTime(30),add60:()=>addTime(60),
+  end:()=>recv('session.end','Operator seansni yakunladi',()=>{if(!st.session){showToast('Seans yo\'q','Kompyuter allaqachon qulflangan','blue');return}st.session=null;st.ended=null;send('session.ended','Yakunlandi');log('sys','lock_screen','Ekran qulflandi');render()}),
+  warn:()=>{const s=st.session;if(!s||s.mode==='open'){showToast('Taymer yo\'q','Avval oldindan to\'langan seans oching','blue');return}setSpeedKeep(()=>{s.end=(s.pausedAt||vnow())-(s.pausedFor||0)+5*MIN+2000;s.warned=false});log('sys','(sinov)','Qolgan vaqt 5 daqiqaga tushirildi')},
+  expire:()=>{const s=st.session;if(!s||s.mode==='open'){recv('session.lock','',()=>{st.session=null;st.ended={due:0};render()});return}s.end=(s.pausedAt||vnow())-(s.pausedFor||0)-1;log('sys','(sinov)','Vaqt tugatildi');tick()},
+  expireDue:()=>{if(!st.session)cmds.start60();const s=st.session;if(!s)return;s.due=13000;s.end=(s.pausedAt||vnow())-(s.pausedFor||0)-1;log('sys','(sinov)','Bar xizmati 13 000 so\'m to\'lanmagan holda vaqt tugatildi');tick()},
+  pause:()=>{const s=st.session;if(!s){showToast('Seans yo\'q','Pauza faqat ochiq seansda ishlaydi','blue');return}
+    recv(s.pausedAt?'session.resume':'session.pause','',()=>{if(s.pausedAt){s.pausedFor=(s.pausedFor||0)+vnow()-s.pausedAt;s.pausedAt=null;showToast('Davom etmoqda','Vaqt yana sanalmoqda','green')}else{s.pausedAt=vnow();showToast('Pauza','Administrator vaqtni to\'xtatdi','blue')}render()})},
+  msg:()=>{const t=$('#msgIn').value.trim();if(!t)return;recv(`message {text:"${t}"}`,'',()=>{st.modal=t;send('message.shown','Mijoz ekranida ko\'rsatildi');render()})},
+  offline:()=>{if(!conn.paired){showToast('Adminga ulanmagan','Avval ulanish oynasida IP kiriting','red');return}st.online=!st.online;$('#offBtn').textContent=st.online?'Admin aloqasini uzish':'Aloqani tiklash';
+    if(st.online){log('sys','connected','Aloqa tiklandi — navbatdagi hodisalar yuborildi');send('sync {state}',st.session?`Seans davom etmoqda, qoldi ${st.session.mode==='open'?'—':hms(left(st.session))}`:'Kompyuter qulflangan');showToast('Aloqa tiklandi','Ma\'lumotlar admin bilan sinxronlandi','green');setTimeout(()=>timeSync('Aloqa tiklanganda soatni tekshirish'),900)}
+    else{log('sys','disconnected','Admin javob bermayapti — taymer mahalliy sanalmoqda');showToast('Aloqa uzildi','Vaqtingiz saqlanadi, taymer davom etadi','red')}render()}
+};
+function setSpeedKeep(fn){fn();render()}
+function addTime(m){recv(`session.add_time {minutes:${m}}`,`Operator +${m} daqiqa qo'shdi`,()=>{const s=st.session;
+  if(!s){showToast('Seans yo\'q','Avval seans oching','blue');return}
+  if(s.mode==='open'){showToast('Ochiq vaqt','Ustiga pul qo\'shildi, taymer ochiq davom etadi','blue');send('session.updated',`+${m} daqiqa hisobga qo'shildi`);return}
+  s.end+=m*MIN;s.warned=false;showToast(`+${m} daqiqa qo'shildi`,`Yangi tugash vaqti: ${hhmm(vnow()+left(s))}`,'green');send('session.updated',`Tugaydi ${hhmm(vnow()+left(s))}`);render()})}
+
+/* ---------- client-side actions ---------- */
+function login(){
+  const lg=($('#lg')?.value||'').trim(),pw=$('#pw')?.value||'';
+  if(!lg||!pw){st.loginErr='Login va parolni kiriting';render();$(lg?'#pw':'#lg').focus();return}
+  if(!st.online){st.loginErr='Admin bilan aloqa yo\'q — akkaunt bilan kirib bo\'lmaydi';render();return}
+  send(`auth.login {login:"${lg}"}`,'Parol shifrlangan holda yuboriladi');
+  const a=ACCOUNTS[lg];
+  if(!a||a.pass!==pw){log('in','auth.denied','Login yoki parol noto\'g\'ri');st.loginErr='Login yoki parol noto\'g\'ri';render();$('#pw').value='';$('#pw').focus();return}
+  if(a.balance<st.rate/6){log('in','auth.denied','Balans yetarli emas');st.loginErr=`Balans yetarli emas (${fmt(a.balance)} so'm). Administratorga murojaat qiling`;render();return}
+  const mins=a.balance/st.rate*60;
+  log('in',`auth.ok {balance:${a.balance}}`,`${lg} — ${Math.floor(mins/60)} soat ${Math.round(mins%60)} daqiqaga yetadi`);
+  st.loginErr='';st.ended=null;st.session={mode:'acc',start:vnow(),end:vnow()+mins*MIN,login:lg,balance:a.balance};
+  showToast(`Xush kelibsiz, ${lg}`,`Balans: ${fmt(a.balance)} so'm`,'green');render()}
+
+$('#screen').addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const a=b.dataset.act;
+  if(a==='connect'){doConnect();return}
+  if(a==='settings'){conn.askPass=true;conn.passErr='';render();setTimeout(()=>$('#spw')?.focus(),0);return}
+  if(a==='passCancel'){conn.askPass=false;render();return}
+  if(a==='passOk'){if($('#spw').value!==SIM.adminPass){conn.passErr='Parol noto\'g\'ri';render();$('#spw').focus();return}conn.askPass=false;conn.editing=true;conn.err='';render();return}
+  if(a==='editCancel'){conn.editing=false;conn.err='';render();return}
+  if(a==='unpair'){conn.paired=false;conn.editing=false;conn.ip='';conn.code='';conn.err='';st.session=null;st.ended=null;saveConn();log('sys','unpaired','Klient admindan uzildi — yangi ulanish kutilmoqda');render();return}
+  if(a==='login')login();
+  if(a==='mini'){st.mini=!st.mini;render()}
+  if(a==='okmsg'){st.modal=null;render()}
+  if(a==='more'){send('client.request_time',`${st.pc} vaqt so'radi`);showToast('So\'rov yuborildi','Administrator ekranida xabar chiqdi','blue')}
+  if(a==='logout'){lockNow(0,'Mijoz akkauntdan chiqdi')}});
+$('#screen').addEventListener('keydown',e=>{if(e.key!=='Enter')return;if(e.target.id==='lg'||e.target.id==='pw')login();if(['sIp','sPort','sCode','sName'].includes(e.target.id))doConnect();if(e.target.id==='spw')document.querySelector('[data-act="passOk"]').click()});
+document.querySelector('.ctrl').addEventListener('click',e=>{const b=e.target.closest('[data-cmd]');if(b)cmds[b.dataset.cmd]();
+  const sp=e.target.closest('[data-speed]');if(sp){setSpeed(+sp.dataset.speed);document.querySelectorAll('[data-speed]').forEach(x=>x.setAttribute('aria-pressed',x===sp));log('sys','(sinov)',`Tezlik ×${sp.dataset.speed}`)}});
+$('#pcSel').onchange=e=>{st.pc=e.target.value;conn.name=st.pc;saveConn();st.rate=st.pc.startsWith('VIP')?15000:10000;log('sys','hello',`${st.pc} adminga ulandi · tarif ${fmt(st.rate)} so'm/soat`);render()};
+
+/* drag the timer widget */
+let dragging=null;
+function bindDrag(){const w=$('#widget');if(!w)return;
+  w.onpointerdown=e=>{if(e.target.closest('button'))return;const r=w.getBoundingClientRect(),sr=$('#screen').getBoundingClientRect();
+    dragging={dx:e.clientX-r.left,dy:e.clientY-r.top,sr,w:r.width,h:r.height};w.setPointerCapture(e.pointerId);w.classList.add('dragging')};
+  w.onpointermove=e=>{if(!dragging)return;const {sr,dx,dy}=dragging;
+    const x=Math.max(0,Math.min(sr.width-dragging.w,e.clientX-sr.left-dx)),y=Math.max(0,Math.min(sr.height-dragging.h,e.clientY-sr.top-dy));
+    st.pos={x:x/sr.width*100,y:y/sr.height*100};w.style.left=st.pos.x+'%';w.style.top=st.pos.y+'%';w.style.right='auto'};
+  w.onpointerup=()=>{if(dragging){dragging=null;w.classList.remove('dragging')}}}
+
+$('#themes').innerHTML=CLIENT_THEMES.map(t=>`<button class="th" data-th="${t.id}" aria-pressed="false" title="${t.name}"><i style="background:${t.wall};--a:${t.accent}"></i><span>${t.name}</span></button>`).join('');
+$('#themes').addEventListener('click',e=>{const b=e.target.closest('[data-th]');if(!b)return;const t=CLIENT_THEMES.find(x=>x.id===b.dataset.th);
+  recv(`theme.set {id:"${t.id}"}`,`Admin klient mavzusini o'zgartirdi: ${t.name}`,()=>{st.theme=t.id;applyTheme(t.id);send('theme.applied',t.name);showToast('Mavzu yangilandi',t.name,'green',2500)})});
+let lkTimer=null;
+document.querySelector('.ctrl').addEventListener('click',e=>{const b=e.target.closest('[data-clk]');if(!b)return;clk.offset+= +b.dataset.clk;
+  log('sys','(sinov)',`Windows soati o'zgartirildi: ${fmtDrift(+b.dataset.clk)} → farq ${fmtDrift(clk.offset)}`);renderClk();render();
+  if(conn.paired&&st.online){clearTimeout(clk.t);clk.t=setTimeout(()=>timeSync('Soat o\'zgargani aniqlandi'),2500)}});
+setInterval(()=>{renderClk();if(conn.paired&&st.online&&clk.lastSync&&vnow()-clk.lastSync>10*MIN)timeSync('Rejali tekshiruv (har 10 daqiqa)')},1000);
+function lkSend(){if(!conn.paired||!st.online){if(!conn.paired)return;log('sys','(yetib kelmadi)','Aloqa yo\'q — qulf ekrani sozlamasi yetib kelmadi');return}
+  clearTimeout(lkTimer);lkTimer=setTimeout(()=>log('in',`lock.config {layout:"${st.lk.layout}", valign:"${st.lk.valign}", clock:${st.lk.cs}%, title:${st.lk.ts}%, text:${st.lk.xs}%}`,'Qulf ekrani joylashuvi yangilandi'),350)}
+document.querySelector('.ctrl').addEventListener('click',e=>{const a=e.target.closest('[data-lkl]'),v=e.target.closest('[data-lkvv]');if(!a&&!v)return;
+  if(a){st.lk.layout=a.dataset.lkl;document.querySelectorAll('[data-lkl]').forEach(x=>x.setAttribute('aria-pressed',x===a))}
+  if(v){st.lk.valign=v.dataset.lkvv;document.querySelectorAll('[data-lkvv]').forEach(x=>x.setAttribute('aria-pressed',x===v))}
+  lkSend();if(!st.session)render()});
+document.querySelector('.ctrl').addEventListener('input',e=>{const r=e.target.closest('[data-lks]');if(!r)return;st.lk[r.dataset.lks]=+r.value;r.nextElementSibling.textContent=r.value+'%';lkSend();if(!st.session)render()});
+applyTheme(st.theme);
+if(conn.paired){log('sys','connect',`ws://${conn.ip}:${conn.port} ga ulanish (saqlangan manzil)`);log('in','hello.ok','Saqlangan kalit bilan ulandi');setTimeout(()=>timeSync('Yonganda soatni tekshirish'),700);log('in','lock.config {theme, title, text, clock, login, wallpaper}','Qulf ekrani sozlamalari va mavzu olindi')}
+else log('sys','first_run','Admin manzili kiritilmagan — ulanish oynasi ko\'rsatildi');
+renderSim();
+render();let simKey='';setInterval(()=>{tick();const k=conn.paired+'|'+conn.name+'|'+SIM.code;if(k!==simKey){simKey=k;renderSim()}},250);
+</script>
+</body>
+</html>

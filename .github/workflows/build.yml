@@ -1,0 +1,139 @@
+name: build
+
+# Har push'da ikkala dastur Windows EXE qilib yig'iladi.
+# v1.2.3 ko'rinishidagi teg push qilinsa — ikkalasi bitta GitHub Release'ga yuklanadi.
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  klub-pult:
+    name: Klub Pult Server (Electron)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: klub-pult/admin
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: klub-pult/admin/package-lock.json
+
+      - run: npm ci
+
+      - name: Versiyani tegdan yozish
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        shell: bash
+        run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
+
+      - name: EXE yig'ish (setup + portable)
+        run: npm run dist
+
+      - name: Artefakt
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: KlubPult-Server-windows
+          if-no-files-found: error
+          retention-days: 7
+          path: klub-pult/admin/dist/*.exe
+
+      - name: Relizga yuklash
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          name: DUST2 ${{ github.ref_name }}
+          files: klub-pult/admin/dist/*.exe
+          generate_release_notes: true
+          body: |
+            - `KlubPult-Server-*-setup.exe` — kassadagi kompyuterga (Klub Pult Server)
+            - `KlubPult-Server-*-portable.exe` — o'rnatmasdan ishlatish uchun
+            - `DUST2-Klient-Setup-*.exe` — har bir o'yin kompyuteriga (klient agent)
+
+            Kod imzolanmagan — SmartScreen chiqsa: "More info / Дополнительно" → "Run anyway".
+
+  dust2-klient:
+    name: DUST2 Klient (.NET 8)
+    runs-on: windows-latest
+    # Relizga ketma-ket yozish uchun: ikki job bir vaqtda release yaratmasin
+    needs: klub-pult
+    defaults:
+      run:
+        working-directory: dust2-klient
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Versiyani aniqlash
+        id: ver
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VER="${GITHUB_REF_NAME#v}"
+          else
+            VER="$(tr -d '[:space:]' < VERSION)"
+          fi
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "Versiya: $VER"
+
+      - run: dotnet restore Dust2Agent.sln
+
+      - name: Yig'ish
+        run: dotnet build Dust2Agent.sln --configuration Release --no-restore
+
+      - name: Testlar
+        run: dotnet test Dust2Agent.sln --configuration Release --no-restore --no-build
+
+      - name: Xizmatni publish qilish
+        run: >
+          dotnet publish src/Dust2Agent.Service/Dust2Agent.Service.csproj
+          --configuration Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:Version=${{ steps.ver.outputs.version }}
+          -o publish/service
+
+      - name: Qobiqni publish qilish
+        run: >
+          dotnet publish src/Dust2Agent.Shell/Dust2Agent.Shell.csproj
+          --configuration Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:Version=${{ steps.ver.outputs.version }}
+          -o publish/shell
+
+      - name: Inno Setup bilan installer yig'ish
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.5
+        with:
+          path: dust2-klient/installer/dust2-klient.iss
+          options: /DMyAppVersion=${{ steps.ver.outputs.version }}
+
+      - name: Installer yig'ilganini tekshirish
+        shell: bash
+        run: ls -l installer/Output/DUST2-Klient-Setup-*.exe
+
+      - name: Artefakt
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: DUST2-Klient-windows
+          if-no-files-found: error
+          retention-days: 7
+          path: dust2-klient/installer/Output/DUST2-Klient-Setup-*.exe
+
+      - name: Relizga yuklash
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          name: DUST2 ${{ github.ref_name }}
+          files: dust2-klient/installer/Output/DUST2-Klient-Setup-*.exe

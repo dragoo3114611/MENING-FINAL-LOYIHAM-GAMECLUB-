@@ -1,0 +1,21 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <Company>DUST2 GAMEZONE</Company>
+    <Product>DUST2 Klient</Product>
+    <Version Condition="'$(Version)' == ''">0.1.8</Version>
+    <!--
+      Diqqat: bu yerda InvariantGlobalization YOQILMAYDI.
+
+      Yoqilgan bo'lsa, WPF matn maydoniga fokus berilganda kiritish tilini so'raydi
+      (InputLanguageSource.CurrentInputLanguage → new CultureInfo(1033)) va istisno
+      tashlanadi: "Only the invariant culture is supported in globalization-invariant
+      mode". Natijada kursor matn maydoniga tushmaydi — sichqoncha ham, klaviatura
+      ham ishlamaydigandek ko'rinadi.
+    -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,52 @@
+<Window x:Class="Dust2Agent.Shell.WidgetWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="DUST2 taymer" WindowStyle="None" ResizeMode="NoResize" Topmost="True"
+        ShowInTaskbar="False" AllowsTransparency="True" Background="Transparent"
+        SizeToContent="WidthAndHeight" FontFamily="Segoe UI">
+
+  <Border x:Name="Card" CornerRadius="12" Padding="16,14" Background="#EB0E121A"
+          BorderBrush="#24FFFFFF" BorderThickness="1" MouseLeftButtonDown="Card_Drag">
+    <Grid>
+      <!-- ixcham ko'rinish -->
+      <TextBlock x:Name="MiniText" Visibility="Collapsed" FontSize="20" FontWeight="SemiBold"
+                 Foreground="White" Margin="0,0,26,0"/>
+
+      <StackPanel x:Name="FullPanel" MinWidth="230">
+        <Grid>
+          <TextBlock x:Name="PcNameText" FontSize="14" FontWeight="SemiBold" Foreground="White"/>
+          <TextBlock x:Name="StatusText" FontSize="12" Foreground="#AAB4C4"
+                     HorizontalAlignment="Right" Margin="0,0,26,0"/>
+        </Grid>
+
+        <TextBlock x:Name="TimeText" Text="00:00:00" FontSize="40" FontWeight="SemiBold"
+                   Foreground="White" Margin="0,8,0,6"/>
+
+        <Border Height="4" CornerRadius="3" Background="#24FFFFFF" Margin="0,0,0,10">
+          <Border x:Name="ProgressFill" HorizontalAlignment="Left" Background="#E0A84E"
+                  CornerRadius="3"/>
+        </Border>
+
+        <StackPanel x:Name="Rows"/>
+
+        <Grid Margin="0,12,0,0">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="6"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          <Button x:Name="AskTimeButton" Content="Vaqt so'rash" Padding="8,6" FontSize="12"
+                  Background="#14FFFFFF" Foreground="White" BorderBrush="#24FFFFFF"
+                  BorderThickness="1" Cursor="Hand" Click="AskTime_Click"/>
+          <Button x:Name="LogoutButton" Grid.Column="2" Content="Chiqish" Padding="10,6" FontSize="12"
+                  Background="#14FFFFFF" Foreground="White" BorderBrush="#24FFFFFF"
+                  BorderThickness="1" Cursor="Hand" Visibility="Collapsed" Click="Logout_Click"/>
+        </Grid>
+      </StackPanel>
+
+      <Button x:Name="MiniButton" Content="–" Width="22" Height="20" FontSize="13" Padding="0"
+              VerticalAlignment="Top" HorizontalAlignment="Right" Background="#14FFFFFF"
+              Foreground="#AAB4C4" BorderThickness="0" Cursor="Hand" Click="Mini_Click"/>
+    </Grid>
+  </Border>
+</Window>

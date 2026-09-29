@@ -1,0 +1,61 @@
+{
+  "name": "klub-pult-server",
+  "productName": "Klub Pult",
+  "version": "1.0.0",
+  "description": "Kompyuter klubi boshqaruv paneli va server",
+  "author": "Klub Pult",
+  "main": "main.js",
+  "scripts": {
+    "prepare-app": "node -e \"require('fs').copyFileSync('../index.html','index.html')\"",
+    "start": "npm run prepare-app && electron .",
+    "dist": "npm run prepare-app && electron-builder --win --x64",
+    "rebuild": "electron-rebuild -f -w better-sqlite3"
+  },
+  "build": {
+    "appId": "uz.klubpult.server",
+    "productName": "Klub Pult",
+    "files": [
+      "main.js",
+      "preload.js",
+      "server.js",
+      "db.js",
+      "index.html"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "portable",
+        "nsis"
+      ],
+      "signAndEditExecutable": false
+    },
+    "portable": {
+      "artifactName": "KlubPult-Server-${version}-portable.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "KlubPult-Server-${version}-setup.exe",
+      "shortcutName": "Klub Pult",
+      "include": "build/installer.nsh"
+    },
+    "asarUnpack": [
+      "**/node_modules/better-sqlite3/**",
+      "**/node_modules/bindings/**",
+      "**/node_modules/file-uri-to-path/**"
+    ],
+    "npmRebuild": true
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.2.0",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "ws": "^8.21.3"
+  }
+}
