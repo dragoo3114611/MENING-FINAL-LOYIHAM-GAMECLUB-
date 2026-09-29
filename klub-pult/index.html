@@ -507,18 +507,20 @@ kbd{font:600 12px "JetBrains Mono",ui-monospace,monospace;border:1px solid var(-
 .dlg-h .mx+.x{margin-left:4px}
 .dlg.xl .dlg-b>.pbox{flex:1;min-height:120px;display:flex;flex-direction:column}
 .pbox .tbl{flex:1;overflow:auto}
-table.pt thead th{position:sticky;top:0;z-index:1}
+table.pt thead{position:sticky;top:0;z-index:1}
+table.pt thead th{position:relative}
 table.pt th,table.pt td{padding:7px 9px}
 table.pt td.nm{max-width:280px}
 @media(max-width:900px){table.pt td.nm{max-width:150px}table.pt th,table.pt td{padding:7px 6px}}
 table.pt td.nm b,table.pt td.nm small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
 table.pt td.act .btn+.btn{margin-left:6px}
-table.pt th .sk{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:3px}
+table.pt th .sk{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:3px;max-width:100%;min-width:0;vertical-align:middle}
+table.pt th .sk span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 table.pt th .sk:hover,table.pt th[aria-sort=ascending] .sk,table.pt th[aria-sort=descending] .sk{color:var(--text)}
 table.pt th .sk:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
-table.pt th .sk i{font-style:normal;font-size:10px}
-table.pt th .cr{position:absolute;top:0;right:-4px;width:9px;height:100%;cursor:col-resize;z-index:2;touch-action:none}
-table.pt th .cr::after{content:'';position:absolute;left:4px;top:25%;height:50%;border-left:1px solid var(--line2)}
+table.pt th .sk i{font-style:normal;font-size:10px;flex:none}
+table.pt th .cr{position:absolute;top:0;right:0;width:9px;height:100%;cursor:col-resize;z-index:2;touch-action:none}
+table.pt th .cr::after{content:'';position:absolute;right:0;top:25%;height:50%;border-left:1px solid var(--line2)}
 table.pt th .cr:hover::after,table.pt th .cr.on::after{border-left:2px solid var(--accent);top:0;height:100%}
 table.pt.rsz{table-layout:fixed;min-width:100%}
 table.pt.rsz td.nm{max-width:none}
@@ -1179,7 +1181,7 @@ function procsModal(sel){
   let cur=list.find(p=>procList(p).some(x=>!x.sys))||list[0],draw=()=>{};
   modal({title:list.length>1?`Jarayonlar — ${list.length} ta kompyuter`:`Jarayonlar — PC ${cur.n}`,xl:true,
     body:`${list.length>1?'<div class="pchips pmt" id="pm-t" role="tablist" aria-label="Kompyuter"></div>':''}<div id="pm-h"></div>
-      <div class="box pbox" style="margin-top:12px"><div class="tbl"><table class="t pt"><thead><tr>${PROC_COLS.map(([k,l,c])=>`<th${c?` class="${c}"`:''} data-sk="${k}"><button type="button" class="sk">${l}<i></i></button></th>`).join('')}<th class="r">Amallar</th></tr></thead><tbody id="pm-b"></tbody></table></div></div>
+      <div class="box pbox" style="margin-top:12px"><div class="tbl"><table class="t pt"><thead><tr>${PROC_COLS.map(([k,l,c])=>`<th${c?` class="${c}"`:''} data-sk="${k}"><button type="button" class="sk"${c?' style="flex-direction:row-reverse"':''}><span>${l}</span><i></i></button></th>`).join('')}<th class="r">Amallar</th></tr></thead><tbody id="pm-b"></tbody></table></div></div>
       <p class="note" style="margin:10px 0 0">«Saqlansin» belgilangan ilova tozalashda yopilmaydi — bu hamma kompyuterlarga amal qiladi. Tizim jarayonlari hech qachon yopilmaydi. Maʼlumot har 2 soniyada yangilanadi. Ustun nomini bossangiz, shu ustun boʻyicha saralanadi; sichqoncha roʻyxat ustida turganda qatorlar joyidan siljimaydi.</p>`,
     actions:[{label:'Yopish'},...(list.length>1?[{label:`Hammasida tozalash (${list.length} ta PC)`,cls:'dng',run:()=>{guard('procs','Jarayonlarni tozalash',()=>{cleanProcs(list);draw()});return false}}]:[]),
       {label:'Tozalash',cls:'dngf',run:()=>{guard('procs','Jarayonlarni tozalash',()=>{cleanProcs([cur]);draw()});return false}}],
@@ -1205,8 +1207,8 @@ function procsModal(sel){
       $$('[data-kill]',ov).forEach(b=>b.onclick=()=>{const nm=b.dataset.kill;guard('procs','Jarayonni tugatish',()=>{const st=NET?(net.procs[cur.n]||{list:[]}):procs[cur.n],x=st.list.find(y=>y.name===nm);st.list=st.list.filter(y=>y.name!==nm);if(NET&&x&&x.pid)netSend(cur.n,'process.kill',{pids:[x.pid]});
         addLog('info',`Jarayon tugatildi PC ${cur.n}: ${nm}${x?` (${x.exe})`:''} — ${me().name}`);save();draw();if(ui.view==='zal')renderGrid()})});
     };colResize($('table.pt',ov));
-    const tb=$('#pm-b',ov);tb.addEventListener('mouseenter',()=>hold=true);tb.addEventListener('mouseleave',()=>hold=false);
-    $('table.pt thead',ov).addEventListener('click',e=>{if(e.target.closest('.cr'))return;const th=e.target.closest('th[data-sk]');if(!th)return;
+    const tb=$('#pm-b',ov);tb.addEventListener('pointerenter',e=>{if(e.pointerType==='mouse')hold=true});tb.addEventListener('pointerleave',()=>hold=false);
+    $('table.pt thead',ov).addEventListener('click',e=>{const bt=e.target.closest('.sk');if(!bt)return;const th=bt.closest('th[data-sk]');
       const k=th.dataset.sk,s=ui.procSort&&PROC_SORT[ui.procSort.k]?ui.procSort:{k:'kind',d:1};ui.procSort=s.k===k?{k,d:-s.d}:{k,d:PROC_SORT[k].num?-1:1};saveUI();order=[];draw()});
     draw();iv=setInterval(draw,2000)}});
 }
