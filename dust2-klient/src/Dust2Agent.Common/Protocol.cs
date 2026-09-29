@@ -134,7 +134,7 @@ public sealed class BehaviourPayload
 public sealed class AgentConfigPayload
 {
     [JsonPropertyName("servicePassHash")] public string ServicePassHash { get; set; } = "";
-    [JsonPropertyName("unlockCombo")] public string UnlockCombo { get; set; } = "Ctrl+Alt+P";
+    [JsonPropertyName("unlockCombo")] public string UnlockCombo { get; set; } = AgentConfig.DefaultUnlockCombo;
 }
 
 public sealed class HelloOkPayload

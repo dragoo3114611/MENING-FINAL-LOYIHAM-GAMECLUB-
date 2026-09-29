@@ -198,14 +198,14 @@ Versiya: ____________  Sana: ____________  Tekshirgan: ____________
 - [ ] H2. "Markazda" va "Hammasi chapda" joylashuvda kirish kartasi ham ko'chdi
 - [ ] H3. Bloklash yoqilganda: Win, Alt+Tab, Alt+F4, Ctrl+Esc ishlamadi
 - [ ] H4. Login va parol yozish **ishladi** (bloklash xalaqit bermadi)
-- [ ] H5. Ctrl+Alt+P ishladi va boshqaruv oynasi ochildi
+- [ ] H5. Ctrl+Alt+K ishladi va boshqaruv oynasi ochildi
 - [ ] H6. Qulf paytida Task Manager ochilmadi; qulf ochilgach qaytadan ochildi
 - [ ] H7. Qobiq Task Manager'dan majburan yopildi → kiritish **tiklandi** va
       qobiq 3 soniyada qayta ochildi
 
 ## I. Klientni to'xtatish
 
-- [ ] I1. Ctrl+Alt+P → "Klient dasturini to'xtatish" → qulf ekrani yopildi
+- [ ] I1. Ctrl+Alt+K → "Klient dasturini to'xtatish" → qulf ekrani yopildi
 - [ ] I2. Kompyuter qayta yuklandi — klient hamon to'xtatilgan holatda
 - [ ] I3. "DUST2 klient" yorlig'i ochildi → hammasi tiklandi, admin bilan ulandi
 

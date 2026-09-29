@@ -41,7 +41,7 @@ public static class ExpirePolicy
     ///
     /// Yangi vaqt ochilgan bo'lsa (<paramref name="hasSession"/>) o'chirilmaydi —
     /// sozlamada ham "yangi vaqt ochilmasa" deb yozilgan. Klient dasturi
-    /// to'xtatilgan bo'lsa (Ctrl+Alt+P) ham aralashmaymiz.
+    /// to'xtatilgan bo'lsa (Ctrl+Alt+K) ham aralashmaymiz.
     /// </summary>
     public static bool ShouldPowerOff(DateTime? offAt, bool hasSession, bool clientPaused, DateTime now)
     {

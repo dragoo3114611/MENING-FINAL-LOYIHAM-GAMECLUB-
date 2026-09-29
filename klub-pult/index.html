@@ -114,6 +114,13 @@ table.pcs tbody tr.sel:hover td{background:var(--selbg)}
 table.pcs td.neg{color:var(--off)}
 table.pcs td.low{color:var(--off);font-weight:600}
 table.pcs tr.s-off td{color:var(--muted)}
+table.pcs tr.alarm td.n{background:var(--off);color:#fff;font-weight:800}
+.card.alarm{border-color:var(--off);box-shadow:inset 0 0 0 2px var(--off)}
+.alertbar{display:flex;align-items:center;gap:10px;padding:7px 12px;background:var(--off);color:#fff;font-size:13px}
+.alertbar[hidden]{display:none}
+.alertbar b{font-weight:800;white-space:nowrap}
+.alertbar .al-l{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.alertbar button{border:1px solid #fff;background:transparent;color:#fff;border-radius:6px;padding:3px 10px;cursor:pointer;font-weight:600;white-space:nowrap}
 
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;padding:12px;user-select:none;align-items:start}
 .card{--stc:var(--ok);border:1px solid var(--line);border-top:4px solid var(--stc);border-radius:8px;background:var(--panel);padding:9px 10px 10px;cursor:pointer;display:flex;flex-direction:column;gap:3px;min-height:112px}
@@ -864,6 +871,7 @@ function migrate(){
   if(!st.lock)st.lock=Object.assign({},LK_DEF);
   st.beh=Object.assign({autoWake:true,timer:false,end:'lock',offMin:5,block:true},st.beh||{});
   st.srv=Object.assign({ip:'192.168.1.50',port:7777,code:'888518',svcPass:'0000',sync:true,lastSync:null},st.srv||{});
+  if(!st.srv.hotkey||!hotkeyOk(st.srv.hotkey))st.srv.hotkey=HOTKEY_DEF;
   st.debtDisc=Object.assign({on:true,pct:25},st.debtDisc||{});
   if(!st.ui.family)st.ui.family='Onest';
   if(!S.lockByGroup)S.lockByGroup={};
@@ -871,6 +879,7 @@ function migrate(){
   S.users.forEach(u=>{if(u.active==null)u.active=true;if(u.role!=='admin'){u.perms=Object.assign({},DEF_PERMS,S.perms||{},u.perms||{})}});
   if([...S.users,...(S.clients||[])].some(u=>u.pass&&!pwIsHash(u.pass)))pwMigrate();
   if(!S.requests)S.requests=[];
+  if(!S.pcAlerts)S.pcAlerts=[];
   if(!S.alerts){S.alerts=[];S.shifts.forEach(x=>{if(x.closeAt&&x.counted<x.expected)S.alerts.push(shortAlert(x))})}
   if(!S.alertSeen)S.alertSeen={};
   if(!S.debtPays){S.debtPays=[];S.debts.forEach(d=>{(d.pays||[]).forEach(x=>S.debtPays.push({id:uid(),key:debtKey(d),clientId:d.clientId,name:d.name,t:x.t,amount:x.amount,disc:x.disc||0,pct:x.disc&&x.amount?Math.round(x.disc/x.amount*100):0,method:x.method}));delete d.pays;delete d.paid})}
@@ -911,7 +920,8 @@ function outList(out){return out.length?`<div class="tbl"><table class="t"><thea
 /* =================== Shubhali holatlar =================== */
 // Har biri S.alerts ga yoziladi: {id,t,kind,text,user,amount,pc}. Telegram va boshqa kuzatuvchilar «klub:alert» hodisasini tinglaydi.
 const QUICK_MIN=5;
-const ALERT_KINDS={refund:['Tez yopilgan seans','p-off'],debt:['Qarz tahriri','p-pause'],balance:['Balans tahriri','p-pause'],shortage:['Smena kamomadi','p-off']};
+const ALERT_KINDS={refund:['Tez yopilgan seans','p-off'],debt:['Qarz tahriri','p-pause'],balance:['Balans tahriri','p-pause'],shortage:['Smena kamomadi','p-off'],
+  paused:['Klient toʻxtatildi','p-off'],service_stopped:['Klient xizmati toʻxtatildi','p-off'],manual_unlock:['Qulf parol bilan ochildi','p-off'],unpair:['Klient uzildi','p-off']};
 function shortAlert(x){const u=(S.users.find(y=>y.login===x.user)||{name:x.user}).name,d=x.expected-x.counted;
   return {id:uid(),t:x.closeAt,kind:'shortage',text:`Smena kamomadi: ${u} — kutilgan ${som(x.expected)}, sanalgan ${som(x.counted)}, kam ${som(d)}`,user:x.user,amount:d,shift:x.id}}
 function addAlert(kind,text,x){const a=Object.assign({id:uid(),t:Date.now(),kind,text,user:S.user},x||{});S.alerts.push(a);if(S.alerts.length>2000)S.alerts.splice(0,S.alerts.length-2000);
@@ -1002,7 +1012,7 @@ const NAV=[['zal','Zal'],['mijozlar','Mijozlar'],['bar','Bar'],['qarz','Qarz daf
 function renderNav(){
   const od=openDebtorCount(),low=S.products.filter(p=>p.stock<=p.min).length,al=alertsNew();
   const btn=([k,l,perm])=>{const lock=perm&&!can(perm);
-    const badge=k==='qarz'&&od?`<span class="badge">${od}</span>`:k==='bar'&&low?`<span class="badge red" title="Kam qolgan mahsulotlar">${low}</span>`:k==='shubhali'&&al?`<span class="badge red" title="Yangi shubhali holatlar">${al}</span>`:k==='zal'?`<span class="badge muted">${S.pcs.filter(active).length}/${S.pcs.length}</span>`:lock?'<span class="badge muted">yopiq</span>':'';
+    const badge=k==='qarz'&&od?`<span class="badge">${od}</span>`:k==='bar'&&low?`<span class="badge red" title="Kam qolgan mahsulotlar">${low}</span>`:k==='shubhali'&&al?`<span class="badge red" title="Yangi shubhali holatlar">${al}</span>`:k==='zal'&&alarmCount()?`<span class="badge red" title="Koʻrilmagan xavfli holatlar">${alarmCount()}</span>`:k==='zal'?`<span class="badge muted">${S.pcs.filter(active).length}/${S.pcs.length}</span>`:lock?'<span class="badge muted">yopiq</span>':'';
     return `<button type="button" data-v="${k}" class="${ui.view===k?'on':''}${lock?' locked':''}"${lock?' title="Ruxsat berilmagan"':''}>${l}${badge}</button>`};
   $('#nav').innerHTML=NAV.map(btn).join('');
   $('#nav2').innerHTML=btn(['sozlamalar','Sozlamalar','sozlamalar']);
@@ -1046,6 +1056,7 @@ const IC={
 const TB=[['start','Start'],['add','Qoʻshimcha'],['stop','Stop'],['move','Koʻchirish'],0,['pause','Pauza'],['restart','Qayta yuklash'],['m:restart',''],['shutdown','Oʻchirish'],['m:shutdown',''],['wake','Yoqish'],['m:wake',''],0,['msg','Xabar'],['bar','Bar xizmati'],['procs','Jarayonlar'],['shell','Mijoz ekrani']];
 const LOGI={info:'<svg class="li" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="var(--busy)"/><path d="M8 7v4.5M8 4.6v.2" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>',
   warn:'<svg class="li" viewBox="0 0 16 16"><path d="M8 1.5 15 14H1z" fill="var(--warn)"/><path d="M8 6v4M8 12v.2" stroke="#1a1a1a" stroke-width="1.7" stroke-linecap="round"/></svg>',
+  alarm:'<svg class="li" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="var(--off)"/><path d="M8 4.3v4.6M8 11.3v.2" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/></svg>',
   msg:'<svg class="li" viewBox="0 0 16 16"><rect x="1.5" y="3" width="13" height="10" rx="1.5" fill="var(--c3)"/><path d="M2.5 4.5 8 8.5l5.5-4" stroke="#fff" stroke-width="1.4" fill="none"/></svg>'};
 
 function vZal(m){
@@ -1060,11 +1071,12 @@ function vZal(m){
       <span class="note kbd-h">Shift/Ctrl bilan belgilang · <kbd>Shift</kbd>+<kbd>↑↓</kbd> belgilash · <kbd>Enter</kbd> seansni boshlash · <kbd>Delete</kbd> seansni yakunlash</span>
       <input id="pcq" type="search" placeholder="PC raqami yoki mijoz…" value="${esc(ui.pcq)}" aria-label="Qidirish">
     </div>
+    <div class="alertbar" id="alertbar" role="alert" hidden></div>
     <div class="gridwrap" id="grid"></div>
     <div class="resize" id="rsz" title="Xabarlar oynasi balandligini oʻzgartirish" role="separator"></div>
     <div class="logp" id="logp" style="height:${ui.logH}px">
       <div class="logh"><b>Xabarlar</b>
-        <select id="lgf" aria-label="Xabar turi"><option value="all">Hammasi</option><option value="info">Maʼlumot</option><option value="warn">Diqqat (toʻlov, qarz)</option><option value="msg">Yuborilgan xabarlar</option></select>
+        <select id="lgf" aria-label="Xabar turi"><option value="all">Hammasi</option><option value="info">Maʼlumot</option><option value="warn">Diqqat (toʻlov, qarz)</option><option value="alarm">Xavf (klient toʻxtatildi, qulf ochildi)</option><option value="msg">Yuborilgan xabarlar</option></select>
         <input id="lgpc" type="search" inputmode="numeric" placeholder="PC №" value="${esc(ui.logPc||'')}" style="width:76px" aria-label="PC raqami boʻyicha">
         <input id="lgq" type="search" placeholder="Jurnaldan qidirish" value="${esc(ui.logQ)}">
         <span class="muted" id="lgc"></span>
@@ -1103,7 +1115,7 @@ function vZal(m){
     const mv=ev=>{ui.logH=Math.max(80,Math.min(max,h0+(y0-ev.clientY)));$('#logp').style.height=ui.logH+'px'};
     const up=()=>{rsz.removeEventListener('pointermove',mv);rsz.removeEventListener('pointerup',up);saveUI()};
     rsz.addEventListener('pointermove',mv);rsz.addEventListener('pointerup',up)});
-  renderZalTabs();renderGrid();updateToolbar();updateClock();renderLog('bottom');
+  renderZalTabs();renderAlerts();renderGrid();updateToolbar();updateClock();renderLog('bottom');
 }
 function renderZalTabs(){$$('[data-zm]').forEach(b=>b.classList.toggle('on',b.dataset.zm===ui.zalMode))}
 function visiblePcs(){
@@ -1127,16 +1139,16 @@ function renderGrid(){
     const cols=ordered(ZCOLS,S.settings.ui.order,S.settings.ui.cols);
     g.innerHTML=`<table class="pcs" style="font-size:${S.settings.ui.font}px"><thead><tr><th data-k="n">№ ${ar('n')}</th><th data-k="st" colspan="2">Holat ${ar('st')}</th>${cols.map(c=>`<th${c[2]?` data-k="${c[2]}"`:''}>${c[1]}${c[2]?' '+ar(c[2]):''}</th>`).join('')}</tr></thead><tbody>${
       list.map(p=>{const s=p.session;const sel=ui.sel.has(p.n)?' sel':'';
-        return `<tr data-pc="${p.n}" class="s-${p.status}${sel}"><td class="n">${p.n}</td><td class="stc"><span class="st st-${p.status}"></span></td><td>${STATUS[p.status]}${p.pwrOff?' · oʻchiq':''}</td>${cols.map(c=>{const [h,cl]=zcell(c[0],p,s,now);return `<td${cl?` class="${cl}"`:''}>${h}</td>`}).join('')}</tr>`}).join('')}</tbody></table>`;
+        return `<tr data-pc="${p.n}" class="s-${p.status}${sel}${alarmPc(p.n)?' alarm':''}"><td class="n">${p.n}</td><td class="stc"><span class="st st-${p.status}"></span></td><td>${STATUS[p.status]}${p.pwrOff?' · oʻchiq':''}</td>${cols.map(c=>{const [h,cl]=zcell(c[0],p,s,now);return `<td${cl?` class="${cl}"`:''}>${h}</td>`}).join('')}</tr>`}).join('')}</tbody></table>`;
   }else{
     const rows=ordered(CROWS,S.settings.ui.corder,S.settings.ui.crows);
     g.innerHTML=`<div class="cards" style="font-size:${Math.max(13,S.settings.ui.font-1)}px">${list.map(p=>{const s=p.session;const sel=ui.sel.has(p.n)?' sel':'';
-      const head=`<div class="top"><span class="pn">${p2(p.n)}</span><span class="pill p-${p.status}">${STATUS[p.status]}${p.pwrOff?' · oʻchiq':''}</span></div>`;
-      if(!s)return `<div class="card s-${p.status}${sel}" data-pc="${p.n}">${head}<div class="ct muted">${p.status==='off'?'--:--':'00:00'}</div><div class="cm">${p.status==='off'?'Kompyuter oʻchiq':'Boʻsh — mijoz kutilmoqda'}</div></div>`;
+      const sel2=sel+(alarmPc(p.n)?' alarm':''),head=`<div class="top"><span class="pn">${p2(p.n)}</span><span class="pill p-${p.status}">${STATUS[p.status]}${p.pwrOff?' · oʻchiq':''}</span></div>`;
+      if(!s)return `<div class="card s-${p.status}${sel2}" data-pc="${p.n}">${head}<div class="ct muted">${p.status==='off'?'--:--':'00:00'}</div><div class="cm">${p.status==='off'?'Kompyuter oʻchiq':'Boʻsh — mijoz kutilmoqda'}</div></div>`;
       const L=limitMs(s),el=elapsed(s,now),left=L!=null?L-el:null,pct=L?Math.min(100,el/L*100):0,e=endAt(s,now);
       const val={open:[hm(s.start)],end:[e?hm(e):'—'],sum:[som(accrued(s,now))],vaqt:[hhmm(el),'blue'],played:[som(played(s,now)),'blue'],
         left:[left!=null?hhmm(left):'—'],client:[esc(who(s))],tarif:[esc(s.tname)],bar:[s.bar.length?som(barTotal(s)):'—'],grp:[esc(grpName(p.group))],app:[esc(mainApp(p)||'—')]};
-      return `<div class="card s-${p.status}${sel}" data-pc="${p.n}">${head}
+      return `<div class="card s-${p.status}${sel2}" data-pc="${p.n}">${head}
         <div class="ct${left!=null&&left<5*MIN?' low':''}">${left!=null?hhmm(left):hhmm(el)}</div>
         <div class="cm">${p.status==='pause'?'Pauza · ':''}${CMODE[s.mode]}</div>
         ${rows.length?`<div class="kv">${rows.map(r=>`<span>${r[1]}</span><b class="${val[r[0]][1]||''}" title="${val[r[0]][0]}">${val[r[0]][0]}</b>`).join('')}</div>`:''}
@@ -1525,7 +1537,7 @@ function renderLog(mode){
   const box=$('#log');if(!box)return;
   const atBottom=box.scrollTop+box.clientHeight>=box.scrollHeight-10;const prevH=box.scrollHeight,prevT=box.scrollTop;
   const list=filteredLog(),shown=list.slice(-ui.logLimit),more=list.length-shown.length;
-  const TL={info:['Maʼlumot','p-mut'],warn:['Diqqat','p-pause'],msg:['Xabar','p-acc']};
+  const TL={info:['Maʼlumot','p-mut'],warn:['Diqqat','p-pause'],alarm:['Xavf','p-off'],msg:['Xabar','p-acc']};
   box.innerHTML=`<table class="lgt"><thead><tr><th></th><th>Sana</th><th>Vaqt</th><th>Turi</th><th style="text-align:right">PC</th><th>Xabar</th></tr></thead><tbody>
     <tr><td colspan="6" class="lgmore">${more>0?`↑ Yuqoriga suring — yana ${more} ta eski xabar`:'Jurnal boshi'}</td></tr>`+
     shown.map(l=>{const k=l.t+'|'+l.text.length,tl=TL[l.type]||TL.info,pc=(l.text.match(/PC (\d+)/)||[])[1];
@@ -2241,7 +2253,7 @@ function pcsServer(b,tabs){
       <div class="scard"><div class="l">Port</div><input class="big-in mono" id="sv-port" type="number" min="1" max="65535" value="${sv.port}" style="max-width:140px" aria-label="Port"><div class="s">Windows Firewall shu portga ruxsat berishi kerak</div></div>
       <div class="scard"><div class="l">Server holati</div>${NET?(net.info&&net.info.running?`<div class="big ok-t">Ishlayapti</div><div class="s">Ulangan: <b class="bn">${Object.keys(net.byPc).length}</b> · juftlangan: <b class="bn">${par}</b> / ${S.pcs.length}<br>Shu kompyuter IP: <b class="mono">${esc((net.info.ips||[]).map(x=>x.ip).join(', ')||'—')}</b></div>`:`<div class="big bad-t">Ishlamayapti</div><div class="s">${esc(net.info&&net.info.err||'ishga tushmoqda…')}</div>`):`<div class="big ok-t">Ishlayapti</div><div class="s">Ulangan: <b class="bn">${con}</b> · juftlangan: <b class="bn">${par}</b> / ${S.pcs.length} <span class="muted">(prototip — haqiqiy server Windows ilovasida)</span></div>`}</div>
       <div class="scard hl"><div class="l">Ulanish kodi</div><div class="big mono">${sv.code.slice(0,3)} ${sv.code.slice(3)}</div><div class="qk"><button class="btn sm" type="button" id="sv-new">Yangi kod</button><button class="btn sm" type="button" id="sv-copy">Nusxalash</button></div></div>
-      <div class="scard"><div class="l">Klient xizmat paroli</div><div class="big ${!sv.svcPass?'bad-t':sv.svcPass==='0000'?'bad-t':'ok-t'}">${!sv.svcPass?'Oʻrnatilmagan':sv.svcPass==='0000'?'Standart (0000) — oʻzgartiring':'Oʻrnatilgan'}</div><div class="s">Qulfni ochish <kbd>${esc(sv.hotkey||'Ctrl+Alt+K')}</kbd> va ulanish sozlamalari uchun · <button class="btn sm" type="button" id="sv-pw">Oʻzgartirish</button></div></div>
+      <div class="scard"><div class="l">Klient xizmat paroli</div><div class="big ${!sv.svcPass?'bad-t':sv.svcPass==='0000'?'bad-t':'ok-t'}">${!sv.svcPass?'Oʻrnatilmagan':sv.svcPass==='0000'?'Standart (0000) — oʻzgartiring':'Oʻrnatilgan'}</div><div class="s">Qulfni ochish <kbd>${esc(sv.hotkey)}</kbd> va ulanish sozlamalari uchun · <button class="btn sm" type="button" id="sv-pw">Oʻzgartirish</button></div></div>
     </div>
     <div class="scard sync"><div><div class="l">Admin kompyuter vaqti</div><div class="big mono" id="srv-clk">${hms(now)}</div><div class="s">${dstr(now)}</div></div>
       <div class="sync-t"><label class="ck">${sw('sv-sync',sv.sync,'Vaqt sinxronizatsiyasi')}<b>Vaqt sinxronizatsiyasi ${sv.sync?'yoqilgan':'oʻchirilgan'}</b></label>
@@ -2253,22 +2265,25 @@ function pcsServer(b,tabs){
   $('#sv-port').onchange=e=>{const x=Math.round(+e.target.value);if(!(x>=1&&x<=65535)){e.target.classList.add('bad');return toast('Port 1 dan 65535 gacha boʻlishi kerak','err')}e.target.classList.remove('bad');sv.port=x;save();toast('Port saqlandi');if(NET)netStart()};
   $('#sv-new').onclick=()=>confirmM('Yangi ulanish kodi','Yangi kod yaratilsinmi? Allaqachon juftlangan kompyuterlar ulanishda davom etadi, yangi kompyuterlar faqat yangi kod bilan ulanadi.',()=>{sv.code=String(100000+Math.floor(Math.random()*900000));addLog('info','Yangi ulanish kodi yaratildi');save();again()},'Yaratish');
   $('#sv-copy').onclick=()=>{const c=sv.code;try{navigator.clipboard.writeText(c).then(()=>toast('Kod nusxalandi: '+c),()=>toast('Nusxalab boʻlmadi — kod: '+c,'err'))}catch(e){toast('Nusxalab boʻlmadi — kod: '+c,'err')}};
-  $('#sv-pw').onclick=()=>{let hk=sv.hotkey||'Ctrl+Alt+K';
+  $('#sv-pw').onclick=()=>{let hk=sv.hotkey;
     modal({title:'Klient xizmat paroli',body:`<div class="frm"><p style="margin:0">Klient kompyuterda qulfni qoʻlda ochish va ulanish sozlamalarini ochish uchun soʻraladi. Agentda saqlanadi, shuning uchun admin dasturi oʻchiq boʻlsa ham ishlaydi.</p>
       <label>Yangi parol<input id="sp-1" type="password" autocomplete="new-password"${sv.svcPass?' placeholder="Oʻzgartirmaslik uchun boʻsh qoldiring"':''}></label>
       <label>Parolni takrorlang<input id="sp-2" type="password" autocomplete="new-password"></label>
-      <label>Qulfni ochish kombinatsiyasi<input id="sp-k" readonly value="${esc(hk)}" placeholder="Ctrl+Alt+P"></label>
-      <div class="note">Maydonni bosib, tugmalarni birga bosing — masalan Ctrl+Alt+P.</div><div class="err" id="sp-e"></div></div>`,
+      <label>Qulfni ochish kombinatsiyasi<input id="sp-k" readonly value="${esc(hk)}" placeholder="${HOTKEY_DEF}"></label>
+      <div class="note">Maydonni bosib, tugmalarni birga bosing — masalan ${HOTKEY_DEF}. Ctrl+Alt bilan harf, raqam yoki F1–F12. Saqlansa, ulangan klientlarga darhol yuboriladi, oflayn klientlar ulanganda oladi.</div><div class="err" id="sp-e"></div></div>`,
       actions:[{label:'Bekor qilish'},{label:'Saqlash',cls:'dark',run:()=>{const a=v('sp-1'),er=$('#sp-e');
         if(a||!sv.svcPass){if(a.length<4)return er.textContent='Parol kamida 4 ta belgi boʻlishi kerak',false;if(a!==v('sp-2'))return er.textContent='Parollar mos kelmadi',false}
         const ch=[];if(a){sv.svcPass=a;ch.push('parol')}if(hk!==sv.hotkey){sv.hotkey=hk;ch.push('kombinatsiya '+hk)}
         if(!ch.length)return toast('Oʻzgarish yoʻq');
         addLog('info',`Klient xizmat sozlamasi oʻzgartirildi: ${ch.join(', ')} — ${me().name}`);net.svc.for=null;save();netResyncAll();again();toast(NET?'Saqlandi — ulangan kompyuterlarga yuborildi':'Saqlandi')}}],
       onMount:ov=>{const k=$('#sp-k',ov);k.addEventListener('keydown',e=>{if(e.key==='Tab'||e.key==='Escape')return;e.preventDefault();
-        if(['Control','Alt','Shift','Meta'].includes(e.key))return;const parts=[];if(e.ctrlKey)parts.push('Ctrl');if(e.altKey)parts.push('Alt');if(e.shiftKey)parts.push('Shift');if(e.metaKey)parts.push('Win');
-        if(!parts.length||(parts.length===1&&parts[0]==='Shift'))return $('#sp-e').textContent='Ctrl yoki Alt bilan birga bosing';
-        const key=/^Key[A-Z]$/.test(e.code)?e.code.slice(3):/^Digit\d$/.test(e.code)?e.code.slice(5):/^F\d+$/.test(e.key)?e.key:e.key.length===1?e.key.toUpperCase():e.key;
-        hk=parts.concat(key).join('+');k.value=hk;$('#sp-e').textContent=''})}})};
+        if(['Control','Alt','Shift','Meta'].includes(e.key))return;const parts=[];if(e.ctrlKey)parts.push('Ctrl');if(e.altKey)parts.push('Alt');if(e.shiftKey)parts.push('Shift');
+        if(e.metaKey)return $('#sp-e').textContent='Win tugmasi klientda ishlamaydi — Ctrl yoki Alt ishlating';
+        if(!e.ctrlKey||!e.altKey)return $('#sp-e').textContent='Ctrl+Alt bilan birga bosing (masalan '+HOTKEY_DEF+')';
+        const key=/^Key[A-Z]$/.test(e.code)?e.code.slice(3):/^Digit\d$/.test(e.code)?e.code.slice(5):/^F([1-9]|1[0-2])$/.test(e.key)?e.key:'';
+        if(!key)return $('#sp-e').textContent='Faqat harf, raqam yoki F1–F12 tugmasi ishlaydi';
+        const c=parts.concat(key).join('+');if(!hotkeyOk(c))return $('#sp-e').textContent='Bu kombinatsiyani Windows band qiladi — boshqasini tanlang';
+        hk=c;k.value=hk;$('#sp-e').textContent=''})}})};
   $('#sv-sync').onchange=e=>{sv.sync=e.target.checked;save();again()};
   $('#sv-now').onclick=()=>{const n=S.pcs.filter(p=>p.status!=='off').length;sv.lastSync=Date.now();addLog('info',`Vaqt sinxronlandi: ${n} ta kompyuter (${hms(sv.lastSync)})`);save();again();toast(`${n} ta kompyuter soati sinxronlandi`)};
 }
@@ -2545,6 +2560,7 @@ const CLEAN=[
   {k:'alerts',t:'Shubhali holatlar',d:'Tez yopilgan seanslar, qarz va balans tahrirlari, smena kamomadi roʻyxati',n:()=>S.alerts.length,run:()=>{S.alerts=[];S.alertSeen={}}},
   {k:'stock',t:'Ombor tarixi',d:'Kirim yozuvlari. Mahsulot qoldigʻi oʻzgarmaydi',n:()=>S.stockLog.length,run:()=>{S.stockLog=[]}},
   {k:'req',t:'Klient soʻrovlari',d:'Kompyuterlardan kelgan soʻrovlar roʻyxati',n:()=>S.requests.length,run:()=>{S.requests=[]}},
+  {k:'pcalerts',t:'Xavfli holatlar',d:'Klient toʻxtatilgani, qulf parol bilan ochilgani haqidagi qizil ogohlantirishlar',n:()=>(S.pcAlerts||[]).length,run:()=>{S.pcAlerts=[]}},
   {k:'profit',t:'Foyda hisob-kitobi',d:'Xarajat yozuvlari (ijara, internet, ish haqi va boshqalar)',n:()=>S.expenses.filter(e=>e.src!=='kassa').length,run:()=>{S.expenses=S.expenses.filter(e=>e.src==='kassa')}},
   {k:'sess',t:'Ochiq seanslar',d:'Hamma band kompyuterlar pul hisoblanmasdan boʻshatiladi',danger:1,n:()=>S.pcs.filter(p=>p.session).length,
     run:()=>{S.pcs.forEach(p=>{if(p.session){p.session=null;p.status='free';p.offAt=null;p.pwrOff=false}});ui.sel.clear()}},
@@ -2867,7 +2883,27 @@ function dLock(p){const L=Object.assign({},LK_DEF,lockFor(p));
 function dBeh(){const b=S.settings.beh,w=S.settings.warn;
   return {onExpire:b.end==='lockoff'?'delay':(b.end||'lock'),offDelay:b.offMin||5,blockInput:b.block!==false,
     warnMin:(w&&w.on&&w.mins&&w.mins.length)?Math.max.apply(null,w.mins):5,showWidget:b.timer!==false}}
-async function dAgent(){return {servicePassHash:await svcHash(),unlockCombo:S.settings.srv.hotkey||'Ctrl+Alt+P'}}
+/* Qulfni ochish kombinatsiyasi: klient (DUST2) faqat Ctrl/Alt/Shift + harf, raqam yoki F1–F12 ni taniydi.
+   Ctrl+Alt majburiy — aks holda oddiy yozish (Ctrl+V) yoki oʻyin tugmalari bilan toʻqnashadi. */
+const HOTKEY_DEF='Ctrl+Alt+K';
+const hotkeyOk=c=>/^Ctrl\+Alt\+(Shift\+)?([A-Z0-9]|F([1-9]|1[0-2]))$/.test(String(c||''));
+/* ---- xavfli holatlar (qizil ogohlantirish) ----
+   Klient toʻxtatilsa, xizmat oʻchirilsa, qulf xizmat paroli bilan ochilsa yoki klient oʻzini uzsa.
+   Har biri S.pcAlerts ga (qizil panel, «Koʻrdim» bilan yopiladi), jurnalga 'alarm' turida va addAlert orqali
+   «Shubhali holatlar» roʻyxatiga yoziladi — u «klub:alert» hodisasini chiqaradi (Telegram shuni tinglaydi). */
+const ALERT_TXT={paused:'klient dasturi toʻxtatildi — qulf ekrani oʻchirildi',service_stopped:'klient xizmati (Dust2Agent) toʻxtatildi',
+  manual_unlock:'qulf xizmat paroli bilan ochildi (qulfni ochish kombinatsiyasi)',unpair:'klient oʻzini admindan uzdi'};
+function raiseAlert(p,kind,at){const t=+at>0&&+at<=Date.now()+60000?Math.round(+at):Date.now(),s=p.session;
+  const text=`PC ${p.n}: ${ALERT_TXT[kind]||('xavfli holat: '+kind)}${s?' · seans ochiq ('+who(s)+')':''}`;
+  const a={id:uid(),t,pc:p.n,kind,text,seen:false};S.pcAlerts.push(a);addAlert(kind,text,{t,pc:p.n});if(S.pcAlerts.length>300)S.pcAlerts.splice(0,S.pcAlerts.length-300);
+  addLog('alarm',t<Date.now()-60000?`${text} (${dshort(t)} ${hms(t)} da)`:text);toast(text,'err');renderAlerts();return a}
+const alarmPc=n=>S.pcAlerts&&S.pcAlerts.some(a=>!a.seen&&a.pc===n);
+const alarmCount=()=>S.pcAlerts?S.pcAlerts.filter(a=>!a.seen).length:0;
+function renderAlerts(){const el=$('#alertbar');if(!el)return;const un=(S.pcAlerts||[]).filter(a=>!a.seen).sort((x,y)=>x.t-y.t);el.hidden=!un.length;if(!un.length){el.innerHTML='';return}
+  const last=un[un.length-1];
+  el.innerHTML=`<b>⚠ Xavfli holat${un.length>1?` (${un.length})`:''}</b><span class="al-l" title="${esc(un.map(a=>hms(a.t)+' '+a.text).join('\n'))}">${hms(last.t)} · ${esc(last.text)}</span><button type="button" id="al-ok">Koʻrdim</button>`;
+  $('#al-ok').onclick=()=>{S.pcAlerts.forEach(a=>a.seen=true);addLog('info',`Xavfli holatlar koʻrildi — ${me().name}`);save();renderAlerts();renderNav();if(ui.view==='zal')renderGrid()}}
+async function dAgent(){return {servicePassHash:await svcHash(),unlockCombo:S.settings.srv.hotkey||HOTKEY_DEF}}
 const sessCur=(p,sp)=>sp?{id:sp.sessionId,mode:sp.mode,paused:sp.paused,paidMin:(p.session&&p.session.paidMin)||0,due:Math.round(sp.due/1000)}:null;
 /* ---- ulanish hodisalari ---- */
 function netRefresh(){save();renderNav();if(ui.view==='zal'){renderGrid();updateToolbar()}}
@@ -2910,7 +2946,9 @@ async function netMsg(id,m){const c=net.conn[id];if(!c)return;
       return sendRaw(id,'lock.wallpaper',{hash:d?wphash(d):null,mime:mm?mm[1]:'',dataBase64:mm?mm[2]:''})}
     case 'process.list.result':net.procs[p.n]={t:Date.now(),cpu:+(P.cpu||0),ramUsed:+(P.ramUsedMb||0),ramTotal:+(P.ramTotalMb||0),
       list:(Array.isArray(P.items)?P.items:[]).slice(0,250).map(x=>({name:String(x.name||x.exe||'?'),exe:String(x.exe||''),pid:+x.pid||0,mem:+(x.ramMb||0),cpu:+(x.cpu||0),sys:x.kind==='sys',game:x.kind==='shell',prot:!!x.protected}))};return ok();
-    case 'client.unpair':p.token='';p.paired=false;addLog('warn',`PC ${p.n}: klient oʻzini uzdi`);ok();
+    case 'client.alert':{const k=String(P.kind||'');if(k==='resumed'){addLog('info',`PC ${p.n}: klient dasturi qayta ishga tushirildi`);return ok()}
+      raiseAlert(p,k,P.at);netRefresh();return ok()}
+    case 'client.unpair':p.token='';p.paired=false;raiseAlert(p,'unpair');ok();
       setTimeout(()=>{const cid=net.byPc[p.n];if(cid!=null){delete net.byPc[p.n];NET.close(cid)}netRefresh()},50);return;
     case 'auth.login':return authLogin(id,p,P);
     default:return sendRaw(id,'error',{re:m.id,code:'bad_request',message:'Nomaʼlum xabar: '+m.type})}
@@ -2971,7 +3009,7 @@ function netTick(){if(!NET)return;const now=Date.now();
   })}
 /* haqiqiy ilovada birinchi ishga tushishda namuna maʼlumotlar emas, toza klub */
 function realStart(){seed();migrate();CLEAN.forEach(c=>c.run());
-  S.clients=[];S.products=[];S.log=[];S.requests=[];S.stockLog=[];S.shifts=S.shifts.filter(x=>!x.closeAt);S.shifts.forEach(x=>{x.openCash=0;x.openAt=Date.now();x.user='admin'});
+  S.clients=[];S.products=[];S.log=[];S.requests=[];S.pcAlerts=[];S.stockLog=[];S.shifts=S.shifts.filter(x=>!x.closeAt);S.shifts.forEach(x=>{x.openCash=0;x.openAt=Date.now();x.user='admin'});
   S.pcs.forEach(p=>Object.assign(p,{status:'off',session:null,ip:'',mac:'',paired:false,token:'',cname:'',inbox:[],pwrOff:false,offAt:null,lastEnd:null}));
   S.user='admin';addLog('info','Klub Pult Server birinchi marta ishga tushdi — toza baza')}
 /* =================== Ishga tushirish =================== */

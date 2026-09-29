@@ -49,16 +49,57 @@ public static class ClockSync
     }
 }
 
+/// <summary>
+/// Windows o'chayotganini aniqlash: xizmat to'xtashi — oddiy o'chirishmi yoki
+/// kimdir xizmatni ataylab to'xtatdimi.
+/// </summary>
+public static class SystemShutdown
+{
+    private static volatile bool _marked;
+
+    /// <summary>Windows xizmatga SERVICE_CONTROL_SHUTDOWN yubordi.</summary>
+    public static void Mark() => _marked = true;
+
+    private const int SM_SHUTTINGDOWN = 0x2000;
+
+    [DllImport("user32.dll")]
+    private static extern int GetSystemMetrics(int index);
+
+    public static bool InProgress
+    {
+        get
+        {
+            if (_marked) return true;
+            if (!OperatingSystem.IsWindows()) return false;
+            try
+            {
+                return GetSystemMetrics(SM_SHUTTINGDOWN) != 0;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+    }
+}
+
 /// <summary>Kompyuterni o'chirish va qayta yuklash.</summary>
 [SupportedOSPlatform("windows")]
 public static class PowerControl
 {
+    /// <summary>
+    /// Kompyuterni o'chirish/qayta yuklashni agentning o'zi boshladi — shunda
+    /// xizmat to'xtashi "kimdir xizmatni to'xtatdi" deb hisoblanmaydi.
+    /// </summary>
+    public static volatile bool Requested;
+
     public static void Shutdown(AgentLog log) => Run("/s /t 5 /c \"DUST2: vaqt tugadi\"", log);
 
     public static void Reboot(AgentLog log) => Run("/r /t 5 /c \"DUST2: qayta yuklanmoqda\"", log);
 
     private static void Run(string args, AgentLog log)
     {
+        Requested = true;
         try
         {
             var psi = new System.Diagnostics.ProcessStartInfo("shutdown", args)

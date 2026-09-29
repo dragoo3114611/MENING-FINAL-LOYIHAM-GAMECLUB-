@@ -324,7 +324,7 @@ belgisini oling va "Kompyuterlarga yuborish" bosing.
 **Sozlamalar → Kompyuterlar → Klient xizmat paroli** — bu parol klient
 kompyuterda ulanish sozlamalarini ochish va qulfni qo'lda ochish uchun kerak.
 
-Klient kompyuterda **Ctrl+Alt+P** (kombinatsiyani o'zgartirish mumkin) bosilsa,
+Klient kompyuterda **Ctrl+Alt+K** (kombinatsiyani o'zgartirish mumkin) bosilsa,
 boshqaruv oynasi ochiladi:
 
 - **Ulanish sozlamalari** — IP, port, kompyuter nomi;
