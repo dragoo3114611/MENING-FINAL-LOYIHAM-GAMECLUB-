@@ -38,7 +38,11 @@ Klub Pult Server endi haqiqiy **DUST2 Klient** agenti (`../dust2-klient/`) bilan
 xabarlar konverti `{v,type,id,ts,payload}`.
 - **Juftlash:** agent `pair.request {name, code, ip, mac, version, fastStartup}` yuboradi. Nom `PC <raqam>`
   ga (masalan «PC 5») mos boʻlishi va kod Sozlamalar › Kompyuterlar › Server boʻlimidagi kodga teng boʻlishi
-  kerak. Toʻgʻri boʻlsa `pair.ok {token}` va toʻliq `sync`, aks holda `pair.denied {reason}` (bad_code / unknown_pc).
+  kerak. Toʻgʻri boʻlsa `pair.ok {token}` va toʻliq `sync`, aks holda `pair.denied {reason}` (bad_code / unknown_pc /
+  already_paired / rate_limited). Juftlangan kompyuterni qayta juftlash uchun avval Sozlamalar › Kompyuterlar
+  jadvalida «Uzish» bosiladi. Kod koʻp marta notoʻgʻri kiritilsa, juftlash vaqtincha bloklanadi.
+- **Parollar:** operator, admin va mijoz parollari bazada PBKDF2 hash koʻrinishida saqlanadi (eski ochiq
+  parollar dastur ochilganda avtomatik hashga oʻtkaziladi). Mijoz parolini terib koʻrish ham cheklangan.
 - **Qayta ulanish:** `hello {token}` → `hello.ok` (token SHA-256 hash boʻlib saqlanadi).
 - **Server → agent:** `sync`, `session.start/pause/resume/lock`, `lock.config`, `behaviour`, `message`,
   `process.list`, `process.kill`, `power.off`, `power.reboot`, `time.sync`, `auth.ok/denied`, `lock.wallpaper`.
@@ -50,7 +54,8 @@ xabarlar konverti `{v,type,id,ts,payload}`.
 
 ### DUST2 Klientni Klub Pult Serverga ulash
 1. Admin kompyuterda Klub Pult Serverni oching (server 7777-portda ishga tushadi; Sozlamalar › Kompyuterlar ›
-   Server boʻlimida IP, port va 6 xonali ulanish kodi koʻrinadi).
+   Server boʻlimida IP, port va 6 xonali ulanish kodi koʻrinadi). Standart kod `888518` — uni «Oʻzgartirish»
+   tugmasi bilan oʻzingiz tanlagan 6 ta raqamga almashtiring (dastur kodni oʻzi yaratmaydi).
 2. Oʻsha boʻlimda oʻyin kompyuterini **aynan «PC 5» kabi nom bilan** qoʻshing (agent yuboradigan nomga mos).
 3. Oʻyin kompyuterida DUST2 Klientni oʻrnating va ochib, admin IP, port va ulanish kodini kiriting.
 4. Juftlangach kompyuter Zal jadvalida «Boʻsh» boʻlib chiqadi; keyingi ulanishlarda kod soʻralmaydi.

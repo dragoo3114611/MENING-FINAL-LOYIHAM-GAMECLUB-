@@ -20,8 +20,9 @@ public sealed class AgentClient
     public event Action<ShellState>? StateChanged;
     public event Action<ToastPayload>? Toast;
     public event Action<string>? AdminMessage;
-    public event Action<bool>? UnlockResult;
-    public event Action<bool>? PasswordResult;
+    /// <summary>Xizmat paroli tekshiruvi natijasi: to'g'rimi va (bo'lsa) xizmat xabari.</summary>
+    public event Action<bool, string?>? UnlockResult;
+    public event Action<bool, string?>? PasswordResult;
     public event Action<bool>? ConnectionChanged;
 
     public bool IsConnected
@@ -134,14 +135,14 @@ public sealed class AgentClient
             }
             case PipeTypes.Unlock:
             {
-                var ok = msg.As<OkPayload>()?.Ok ?? false;
-                Post(() => UnlockResult?.Invoke(ok));
+                var r = msg.As<OkPayload>();
+                Post(() => UnlockResult?.Invoke(r?.Ok ?? false, r?.Message));
                 return;
             }
             case PipeTypes.VerifyPassword:
             {
-                var ok = msg.As<OkPayload>()?.Ok ?? false;
-                Post(() => PasswordResult?.Invoke(ok));
+                var r = msg.As<OkPayload>();
+                Post(() => PasswordResult?.Invoke(r?.Ok ?? false, r?.Message));
                 return;
             }
         }
@@ -189,5 +190,8 @@ public sealed class AgentClient
     private sealed class OkPayload
     {
         public bool Ok { get; set; }
+
+        /// <summary>Masalan: "Juda ko'p noto'g'ri urinish — 60 soniyadan keyin…"</summary>
+        public string? Message { get; set; }
     }
 }

@@ -25,8 +25,17 @@ public partial class LockWindow : Window
     private readonly DispatcherTimer _connectTimeout = new() { Interval = TimeSpan.FromSeconds(25) };
 
     private ShellState _state = new();
-    /// <summary>Parol so'ralgach nima qilish: setup | unlock</summary>
+    /// <summary>Parol so'ralgach nima qilish: setup | actions | connect | unpair | unlock</summary>
     private string _passwordPurpose = "setup";
+
+    /// <summary>
+    /// Xizmat paroli shu vaqtgacha qayta so'ralmaydi. Xizmat ham to'g'ri paroldan keyin
+    /// himoyalangan buyruqlarga xuddi shuncha (biroz ko'proq) ruxsat beradi.
+    /// </summary>
+    private DateTime _passwordOkUntil = DateTime.MinValue;
+
+    /// <summary>Parol kiritilishini kutayotgan ulanish so'rovi.</summary>
+    private ConnectRequest? _pendingConnect;
 
     private static readonly string[] WeekDays =
         { "yakshanba", "dushanba", "seshanba", "chorshanba", "payshanba", "juma", "shanba" };
@@ -102,6 +111,8 @@ public partial class LockWindow : Window
     public void SetServiceConnected(bool connected)
     {
         SvcWarn.Visibility = connected ? Visibility.Collapsed : Visibility.Visible;
+        // Xizmat ruxsatni ulanishga bog'laydi — qayta ulanganda parol yana so'raladi
+        if (!connected) _passwordOkUntil = DateTime.MinValue;
     }
 
     /* --------------------------------- holat --------------------------------- */
@@ -149,7 +160,9 @@ public partial class LockWindow : Window
             SetupFoot.Text = $"Bu kompyuter: {Environment.MachineName} · Klient versiyasi " +
                              (typeof(LockWindow).Assembly.GetName().Version?.ToString(3) ?? "0.1.0") +
                              $" · Loglar: {AgentPaths.UserLogs}";
-            if (!HostBox.IsKeyboardFocusWithin && !PortBox.IsKeyboardFocusWithin &&
+            // Parol oynasi ochiq bo'lsa fokusni undan tortib olmaymiz
+            if (PasswordOverlay.Visibility != Visibility.Visible &&
+                !HostBox.IsKeyboardFocusWithin && !PortBox.IsKeyboardFocusWithin &&
                 !CodeBox.IsKeyboardFocusWithin && !NameBox.IsKeyboardFocusWithin)
             {
                 FocusSetup();
@@ -389,17 +402,38 @@ public partial class LockWindow : Window
             return;
         }
 
+        var request = new ConnectRequest { Host = host, Port = port, Code = code, Name = name };
+        if (NeedsPassword())
+        {
+            // Ulanish sozlamasini faqat administrator o'zgartiradi — xizmat ham parolsiz
+            // qabul qilmaydi (masalan, qayta juftlashda parol eski ulanishdan qolgan bo'ladi)
+            _pendingConnect = request;
+            AskPassword("connect", "Ulanish sozlamalari", "O'zgartirish uchun xizmat parolini kiriting.");
+            return;
+        }
+        SendConnect(request);
+    }
+
+    private void SendConnect(ConnectRequest request)
+    {
         SetupStatus.Text = "";
         ConnectButton.IsEnabled = false;
         ConnectButton.Content = "Ulanmoqda…";
         _connectTimeout.Stop();
         _connectTimeout.Start();
-        _agent.Send(PipeTypes.Connect,
-            new ConnectRequest { Host = host, Port = port, Code = code, Name = name });
+        _agent.Send(PipeTypes.Connect, request);
         CodeBox.Clear();
     }
 
-    private void Unpair_Click(object sender, RoutedEventArgs e) => _agent.Send(PipeTypes.Unpair);
+    private void Unpair_Click(object sender, RoutedEventArgs e)
+    {
+        if (NeedsPassword())
+        {
+            AskPassword("unpair", "Admindan uzish", "Xizmat parolini kiriting.");
+            return;
+        }
+        _agent.Send(PipeTypes.Unpair);
+    }
 
     private void Gear_Click(object sender, RoutedEventArgs e)
     {
@@ -408,9 +442,17 @@ public partial class LockWindow : Window
             ShowSetup();
             return;
         }
-        _passwordPurpose = "setup";
-        PwTitle.Text = "Ulanish sozlamalari";
-        PwSub.Text = "Faqat administrator o'zgartira oladi.";
+        AskPassword("setup", "Ulanish sozlamalari", "Faqat administrator o'zgartira oladi.");
+    }
+
+    /// <summary>Xizmat paroli yaqinda to'g'ri kiritilmagan bo'lsa, uni so'rash kerak.</summary>
+    private bool NeedsPassword() => _state.HasServicePassword && DateTime.UtcNow >= _passwordOkUntil;
+
+    private void AskPassword(string purpose, string title, string sub)
+    {
+        _passwordPurpose = purpose;
+        PwTitle.Text = title;
+        PwSub.Text = sub;
         PwError.Text = "";
         ServicePassBox.Clear();
         PasswordOverlay.Visibility = Visibility.Visible;
@@ -434,6 +476,7 @@ public partial class LockWindow : Window
     {
         PasswordOverlay.Visibility = Visibility.Collapsed;
         ServicePassBox.Clear();
+        _pendingConnect = null;
     }
 
     private void PwOk_Click(object sender, RoutedEventArgs e)
@@ -448,19 +491,32 @@ public partial class LockWindow : Window
     }
 
     /// <summary>Xizmatdan kelgan parol tekshiruvi natijasi.</summary>
-    public void OnPasswordChecked(bool ok, bool unlock)
+    /// <param name="message">Xizmat xabari (masalan, urinishlar ko'payib ketganda kutish vaqti).</param>
+    public void OnPasswordChecked(bool ok, bool unlock, string? message = null)
     {
         if (!ok)
         {
-            PwError.Text = "Parol noto'g'ri";
+            PwError.Text = string.IsNullOrEmpty(message) ? "Parol noto'g'ri" : message;
             ServicePassBox.Clear();
             ServicePassBox.Focus();
             return;
         }
+        // Xizmat ham shu parol bilan qisqa muddatli ruxsat berdi — bir oz oldinroq tugatamiz
+        _passwordOkUntil = DateTime.UtcNow + ServicePasswordGate.GrantFor - TimeSpan.FromSeconds(30);
         PasswordOverlay.Visibility = Visibility.Collapsed;
         ServicePassBox.Clear();
         switch (_passwordPurpose)
         {
+            case "connect":
+                if (_pendingConnect is { } request)
+                {
+                    _pendingConnect = null;
+                    SendConnect(request);
+                }
+                return;
+            case "unpair":
+                _agent.Send(PipeTypes.Unpair);
+                return;
             case "unlock":
                 Hide();
                 ShowToast(new ToastPayload
@@ -525,8 +581,9 @@ public partial class LockWindow : Window
     {
         if (e.Key == Key.Enter)
         {
-            if (SetupPanel.Visibility == Visibility.Visible) Connect_Click(sender, e);
-            else if (PasswordOverlay.Visibility == Visibility.Visible) PwOk_Click(sender, e);
+            // Parol oynasi birinchi: u ulanish oynasi ustida ham ochilishi mumkin
+            if (PasswordOverlay.Visibility == Visibility.Visible) PwOk_Click(sender, e);
+            else if (SetupPanel.Visibility == Visibility.Visible) Connect_Click(sender, e);
             else if (LoginFields.Visibility == Visibility.Visible) Login_Click(sender, e);
             return;
         }
@@ -543,13 +600,7 @@ public partial class LockWindow : Window
             return;
         }
 
-        _passwordPurpose = "actions";
-        PwTitle.Text = "Klient boshqaruvi";
-        PwSub.Text = "Xizmat parolini kiriting.";
-        PwError.Text = "";
-        ServicePassBox.Clear();
-        PasswordOverlay.Visibility = Visibility.Visible;
-        ServicePassBox.Focus();
+        AskPassword("actions", "Klient boshqaruvi", "Xizmat parolini kiriting.");
     }
 
     /// <summary>"Ctrl+Alt+P" ko'rinishidagi kombinatsiyani tekshiradi.</summary>

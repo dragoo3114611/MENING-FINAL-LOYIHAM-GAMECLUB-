@@ -649,6 +649,35 @@ const v=id=>{const e=document.getElementById(id);return e?e.value:''};
 const vn=id=>Math.max(0,Math.round(Number(String(v(id)).replace(/\s/g,''))||0));
 function rng(seed){return ()=>{seed=(seed*1664525+1013904223)%4294967296;return seed/4294967296}}
 
+/* ---- Parollar: PBKDF2 hash (klient agentdagi PasswordHash bilan bir xil format) ---- */
+const b64=u8=>btoa(String.fromCharCode(...new Uint8Array(u8)));
+const unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+const PW_IT=120000;
+const isPwHash=s=>/^pbkdf2\$\d+\$[^$]+\$[^$]+$/.test(String(s||''));
+const hasSubtle=()=>!!(window.crypto&&crypto.subtle);
+async function pbkdf2(pw,salt,it){const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveBits']);
+  return new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:it,hash:'SHA-256'},k,256))}
+// Bazaga parolning oʻzi emas, hashi yoziladi. crypto.subtle yoʻq joyda (eski brauzer prototipi) ochiq qoladi
+async function pwHash(pw){pw=String(pw||'');if(!pw||!hasSubtle())return pw;const salt=crypto.getRandomValues(new Uint8Array(16));
+  return `pbkdf2$${PW_IT}$${b64(salt)}$${b64(await pbkdf2(pw,salt,PW_IT))}`}
+// Eski (ochiq matnli) parollar ham qabul qilinadi — ular fonda hashga oʻtkaziladi (upgradePasswords)
+async function pwVerify(stored,plain){stored=String(stored||'');plain=String(plain??'');if(!isPwHash(stored))return stored===plain;
+  if(!hasSubtle())return false;
+  try{const[,it,s,h]=stored.split('$'),a=await pbkdf2(plain,unb64(s),+it),b=unb64(h);if(a.length!==b.length)return false;
+    let d=0;for(let i=0;i<a.length;i++)d|=a[i]^b[i];return d===0}catch(e){return false}}
+
+/* ---- Urinishlarni cheklash: ulanish kodini yoki mijoz parolini terib koʻrishdan himoya ---- */
+const RL=new Map();// kalit -> {t0, n, until}
+function rlWait(k,now=Date.now()){const r=RL.get(k);return r&&r.until>now?r.until-now:0}
+// true — shu xato bilan blok boshlandi
+function rlFail(k,max,win,block,now=Date.now()){
+  if(RL.size>500)for(const[x,r]of RL)if(r.until<=now&&now-r.t0>win)RL.delete(x);
+  let r=RL.get(k);if(!r||now-r.t0>win){r={t0:now,n:0,until:0};RL.set(k,r)}
+  if(++r.n<max)return false;r.until=now+block;r.n=0;r.t0=now;return true}
+const rlOk=k=>{RL.delete(k)};
+const rlReset=prefix=>{for(const k of [...RL.keys()])if(k.startsWith(prefix))RL.delete(k)};
+const rlMsg=ms=>`Juda koʻp notoʻgʻri urinish. ${Math.max(1,Math.ceil(ms/MIN))} daqiqadan soʻng qayta urinib koʻring.`;
+
 /* =================== Holat (state) =================== */
 let S=null;
 const ui={view:'zal',zalMode:'table',sel:new Set(),last:null,lc:null,stf:'all',pcq:'',sort:{k:'n',d:1},
@@ -842,6 +871,8 @@ function seed(){
   return S;
 }
 
+// Standart ulanish kodi. Admin uni Sozlamalar › Kompyuterlar › Server boʻlimida oʻzi oʻzgartiradi
+const DEF_CODE='888518';
 function migrate(){
   const st=S.settings;
   if(!st.levels)st.levels=DEF_LEVELS.map(x=>Object.assign({},x));
@@ -856,7 +887,7 @@ function migrate(){
   S.perms=Object.assign({},DEF_PERMS,S.perms||{});
   if(!st.lock)st.lock=Object.assign({},LK_DEF);
   st.beh=Object.assign({autoWake:true,timer:false,end:'lock',offMin:5,block:true},st.beh||{});
-  st.srv=Object.assign({ip:'192.168.1.50',port:7777,code:'888518',svcPass:'0000',sync:true,lastSync:null},st.srv||{});
+  st.srv=Object.assign({ip:'192.168.1.50',port:7777,code:DEF_CODE,svcPass:'0000',sync:true,lastSync:null},st.srv||{});
   st.debtDisc=Object.assign({on:true,pct:25},st.debtDisc||{});
   if(!st.ui.family)st.ui.family='Onest';
   if(!S.lockByGroup)S.lockByGroup={};
@@ -866,7 +897,20 @@ function migrate(){
   if(!S.debtPays){S.debtPays=[];S.debts.forEach(d=>{(d.pays||[]).forEach(x=>S.debtPays.push({id:uid(),key:debtKey(d),clientId:d.clientId,name:d.name,t:x.t,amount:x.amount,disc:x.disc||0,pct:x.disc&&x.amount?Math.round(x.disc/x.amount*100):0,method:x.method}));delete d.pays;delete d.paid})}
   if(st.lock&&st.lock.sPc==null)st.lock.sPc=100;
   S.pcs.forEach(p=>{if(!p.group)p.group=S.groups[0].id;if(p.ip==null)p.ip='192.168.1.'+(200+p.n);if(p.mac==null)p.mac=(p.n>44||p.n===42)?'':macFor(p.n);if(!p.inbox)p.inbox=[];if(p.paired==null)p.paired=!!p.mac});
+  upgradePasswords();
 }
+/* Eski (ochiq matnli) parollarni fonda hashga oʻtkazish. Tugaguncha kirish eski parol bilan ham ishlaydi (pwVerify) */
+let pwUp=null;
+function upgradePasswords(){
+  if(pwUp||!hasSubtle())return pwUp;
+  const st=S;
+  pwUp=(async()=>{let ch=0;
+    for(const x of [...(st.users||[]),...(st.clients||[])]){const plain=x.pass;if(!plain||isPwHash(plain))continue;
+      const h=await pwHash(plain);if(S!==st)return;// maʼlumotlar almashtirildi (backupdan tiklash) — yangisi uchun qaytadan boshlanadi
+      if(x.pass!==plain)continue;x.pass=h;
+      if((plain==='admin'||plain==='1111')&&st.users.includes(x))x.defPw=true;ch++}
+    if(ch)save()})().catch(e=>console.error(e)).finally(()=>{pwUp=null;if(S!==st)upgradePasswords()});
+  return pwUp}
 function pushInbox(p,text,from){p.inbox=p.inbox||[];p.inbox.push({t:Date.now(),text,from:from||'Administrator',seen:false});if(p.inbox.length>20)p.inbox.shift()}
 function wake(list){
   const off=list.filter(canWake),ok=off.filter(p=>p.mac),nm=list.filter(p=>NET?(!online(p)&&!p.mac):(p.status==='off'||p.pwrOff)&&!p.mac);
@@ -901,7 +945,10 @@ function modal({title,body,wide,xl,actions,onMount,locked}){
   const f=$('.dlg-f',ov);
   let escFn;const close=()=>{ov.remove();const i=modals.indexOf(escFn);if(i>=0)modals.splice(i,1)};escFn=locked?()=>{}:close;
   (actions||[{label:'Yopish'}]).forEach(a=>{const b=document.createElement('button');b.type='button';b.className='btn '+(a.cls||'');b.textContent=a.label;if(a.id)b.id=a.id;if(a.disabled){b.disabled=true;if(a.title)b.title=a.title}
-    b.onclick=()=>{if(a.run&&a.run(ov)===false)return;close()};f.appendChild(b)});
+    b.onclick=()=>{const r=a.run&&a.run(ov);if(r===false)return;
+      // async amal (masalan, parolni tekshirish): tugaguncha tugma bosilmaydi, false qaytsa oyna ochiq qoladi
+      if(r&&typeof r.then==='function'){b.disabled=true;r.then(x=>{b.disabled=false;if(x!==false)close()},e=>{b.disabled=false;console.error(e)});return}
+      close()};f.appendChild(b)});
   if(!locked){ov.addEventListener('mousedown',e=>{if(e.target===ov)close()});$('[data-x]',ov).onclick=close}
   const mx=$('[data-mx]',ov);if(mx)mx.onclick=()=>{const on=$('.dlg',ov).classList.toggle('max');mx.textContent=on?'⤡':'⤢';mx.title=mx.ariaLabel=on?'Kichraytirish':'Butun ekranga'};
   document.body.appendChild(ov);modals.push(escFn);
@@ -919,8 +966,8 @@ function adminPrompt(label,fn){
   modal({title:'Administrator ruxsati',body:`<div class="frm"><p style="margin:0">«${esc(label)}» uchun ruxsatingiz yoʻq. Administrator paroli kiritilsa, 5 daqiqa davomida ruxsat beriladi.</p>
     ${admins.length>1?`<label>Administrator<select id="ap-u">${admins.map(u=>`<option value="${esc(u.login)}">${esc(u.name)}</option>`).join('')}</select></label>`:''}
     <label>Administrator paroli<input id="ap-p" type="password" autocomplete="off"></label><div class="err" id="ap-e"></div></div>`,
-    actions:[{label:'Bekor qilish'},{label:'Ruxsat berish',cls:'pri',run:()=>{const a=admins.length>1?admins.find(u=>u.login===v('ap-u')):admins[0];
-      if(!a||(a.pass||'')!==v('ap-p'))return $('#ap-e').textContent='Parol notoʻgʻri',false;
+    actions:[{label:'Bekor qilish'},{label:'Ruxsat berish',cls:'pri',run:async()=>{const a=admins.length>1?admins.find(u=>u.login===v('ap-u')):admins[0];
+      if(!a||!(await pwVerify(a.pass,v('ap-p'))))return $('#ap-e').textContent='Parol notoʻgʻri',false;
       ui.elev=Date.now()+5*MIN;addLog('warn',`Admin ruxsati bilan: ${label} — ${me().name} (tasdiqladi: ${a.name})`);setTimeout(fn,0)}}],
     onMount:ov=>$('#ap-p',ov).addEventListener('keydown',e=>{if(e.key==='Enter')$('.dlg-f .pri',ov).click()})});
 }
@@ -1598,12 +1645,14 @@ function barStock(b,m){
 function clientModal(id){
   const c=id?client(id):{name:'',phone:'+998 ',login:'',pass:''};
   modal({title:id?'Mijozni tahrirlash':'Yangi mijoz',body:`<div class="frm"><label>Ism familiya<input id="cl-n" value="${esc(c.name)}"></label><label>Telefon<input id="cl-p" value="${esc(c.phone)}" inputmode="tel"></label>
-    <div class="row2"><label>Login (kompyuterga kirish uchun)<input id="cl-l" value="${esc(c.login)}" autocomplete="off"></label><label>Parol<input id="cl-s" value="${esc(c.pass)}" autocomplete="off"></label></div>
-    <div class="note">Mijoz istalgan kompyuterda shu login va parol bilan kiradi, oʻyin vaqti balansidan yechiladi.</div><div class="err" id="cl-e"></div></div>`,
-    actions:[{label:'Bekor qilish'},{label:'Saqlash',cls:'pri',run:()=>{const n=v('cl-n').trim(),l=v('cl-l').trim().toLowerCase();
+    <div class="row2"><label>Login (kompyuterga kirish uchun)<input id="cl-l" value="${esc(c.login)}" autocomplete="off"></label><label>Parol<input id="cl-s" type="password" autocomplete="new-password"${id&&c.pass?' placeholder="Oʻzgartirmaslik uchun boʻsh qoldiring"':''}></label></div>
+    <div class="note">Mijoz istalgan kompyuterda shu login va parol bilan kiradi, oʻyin vaqti balansidan yechiladi. Parol shifrlangan holda saqlanadi — unutilsa, yangisini oʻrnating.</div><div class="err" id="cl-e"></div></div>`,
+    actions:[{label:'Bekor qilish'},{label:'Saqlash',cls:'pri',run:async()=>{const n=v('cl-n').trim(),l=v('cl-l').trim().toLowerCase(),pw=v('cl-s');
       if(!n||!l)return $('#cl-e').textContent='Ism va login majburiy',false;
       if(S.clients.some(x=>x.login===l&&x.id!==id))return $('#cl-e').textContent='Bu login band',false;
-      const o={name:n,phone:v('cl-p').trim(),login:l,pass:v('cl-s')};
+      const o={name:n,phone:v('cl-p').trim(),login:l};
+      // boʻsh maydon — eski parol qoladi (yangi mijozda parol yoʻq)
+      if(pw)o.pass=await pwHash(pw);else if(!id)o.pass='';
       if(id)Object.assign(c,o);else{S.clients.push(Object.assign({id:'c'+uid(),balance:0,createdAt:Date.now()},o));addLog('info',`Yangi mijoz roʻyxatdan oʻtdi: ${n} (@${l})`)}commit();toast('Saqlandi')}}]});
 }
 function topupModal(id){
@@ -2058,7 +2107,7 @@ function pcsTable(b,tabs){
       <td><input class="cell-in" data-f="ip" data-n="${p.n}" value="${esc(p.ip)}" placeholder="kiritilmagan" aria-label="PC ${p.n} IP"></td>
       <td><input class="cell-in mono" data-f="mac" data-n="${p.n}" value="${esc(p.mac)}" placeholder="aniqlanmagan" aria-label="PC ${p.n} MAC"></td>
       <td><span class="pill p-${p.status}">${STATUS[p.status]}</span></td>
-      <td class="act">${p.mac?'':`<button class="btn sm" type="button" data-det="${p.n}">MAC aniqlash</button>`}<button class="btn sm" type="button" data-wol="${p.n}"${p.status==='off'?'':' disabled title="Kompyuter allaqachon yoniq"'}>Yoqish (WOL)</button></td></tr>`).join('')}
+      <td class="act">${p.mac?'':`<button class="btn sm" type="button" data-det="${p.n}">MAC aniqlash</button>`}${p.token?`<button class="btn sm" type="button" data-unpair="${p.n}" title="Juftlashni bekor qilish — klient kompyuterda ulanish kodini qayta kiritish kerak boʻladi">Uzish</button>`:''}<button class="btn sm" type="button" data-wol="${p.n}"${p.status==='off'?'':' disabled title="Kompyuter allaqachon yoniq"'}>Yoqish (WOL)</button></td></tr>`).join('')}
     </tbody></table></div>
     <div class="btnrow"><button class="btn pri" type="button" id="pc-add">Qoʻshish</button><button class="btn dng" type="button" id="pc-del">Belgilanganlarni oʻchirish</button><button class="btn" type="button" id="pc-grp">Guruhga oʻtkazish</button><button class="btn" type="button" id="pc-wol">Belgilanganlarni yoqish (WOL)</button><span class="note" style="margin-left:auto" id="pc-cnt"></span></div></div>
     <div class="note">IP manzil qoʻlda kiritiladi. MAC manzil kompyuterdagi klient dasturi serverga ulanganda avtomatik aniqlanadi; aniqlanmasa — qoʻlda kiriting (masalan <span class="mono">74-56-3C-85-2C-A2</span>). «Yoqish» tugmasi — Zalda ham, shu yerda ham — shu MAC manzilga Wake-on-LAN paketi yuboradi. Oʻzgarishlar maydondan chiqqanda saqlanadi.</div>`;
@@ -2078,6 +2127,12 @@ function pcsTable(b,tabs){
   $$('[data-det]',b).forEach(x=>x.onclick=()=>{const p=pcBy(+x.dataset.det);
     if(p.status==='off')return toast(`PC ${p.n} oʻchiq — klient dasturi ulanmagan. MAC manzilni qoʻlda kiriting.`,'err');
     p.mac=macFor(p.n+100);p.paired=true;addLog('info',`PC ${p.n}: klient dasturi ulandi, MAC aniqlandi ${p.mac}`);save();again();toast(`PC ${p.n}: MAC aniqlandi`)});
+  // Juftlashni bekor qilish: shundan keyingina kompyuter ulanish kodi bilan qayta juftlana oladi
+  $$('[data-unpair]',b).forEach(x=>x.onclick=()=>{const p=pcBy(+x.dataset.unpair);if(!p)return;
+    if(active(p))return toast(`PC ${p.n} da seans ochiq — avval yakunlang`,'err');
+    confirmM('Juftlashni bekor qilish',`PC ${p.n} admin bilan aloqasi uziladi. Qayta ulash uchun klient kompyuterda ulanish kodini kiritish kerak boʻladi.`,()=>{
+      p.token='';p.paired=false;const cid=net.byPc[p.n];if(NET&&cid!=null)NET.close(cid);
+      addLog('warn',`PC ${p.n}: juftlash bekor qilindi — ${me().name}`);commit();toast(`PC ${p.n} uzildi`)},'Uzish')});
   $$('[data-wol]',b).forEach(x=>x.onclick=()=>{wake([pcBy(+x.dataset.wol)]);again()});
   $('#pc-wol').onclick=()=>{const l=picked().filter(p=>p.status==='off');if(!l.length)return toast('Belgilanganlar orasida oʻchiq kompyuter yoʻq','err');wake(l);again()};
   $('#pc-add').onclick=pcAddModal;
@@ -2099,7 +2154,7 @@ function pcsServer(b,tabs){
       <div class="scard"><div class="l">Admin kompyuter IP manzili</div><input class="big-in mono" id="sv-ip" value="${esc(sv.ip)}" aria-label="Admin kompyuter IP manzili"><div class="s">Klient kompyuterlarda shu manzil kiritiladi</div></div>
       <div class="scard"><div class="l">Port</div><input class="big-in mono" id="sv-port" type="number" min="1" max="65535" value="${sv.port}" style="max-width:140px" aria-label="Port"><div class="s">Windows Firewall shu portga ruxsat berishi kerak</div></div>
       <div class="scard"><div class="l">Server holati</div>${NET?(net.info&&net.info.running?`<div class="big ok-t">Ishlayapti</div><div class="s">Ulangan: <b class="bn">${Object.keys(net.byPc).length}</b> · juftlangan: <b class="bn">${par}</b> / ${S.pcs.length}<br>Shu kompyuter IP: <b class="mono">${esc((net.info.ips||[]).map(x=>x.ip).join(', ')||'—')}</b></div>`:`<div class="big bad-t">Ishlamayapti</div><div class="s">${esc(net.info&&net.info.err||'ishga tushmoqda…')}</div>`):`<div class="big ok-t">Ishlayapti</div><div class="s">Ulangan: <b class="bn">${con}</b> · juftlangan: <b class="bn">${par}</b> / ${S.pcs.length} <span class="muted">(prototip — haqiqiy server Windows ilovasida)</span></div>`}</div>
-      <div class="scard hl"><div class="l">Ulanish kodi</div><div class="big mono">${sv.code.slice(0,3)} ${sv.code.slice(3)}</div><div class="qk"><button class="btn sm" type="button" id="sv-new">Yangi kod</button><button class="btn sm" type="button" id="sv-copy">Nusxalash</button></div></div>
+      <div class="scard hl"><div class="l">Ulanish kodi</div><div class="big mono">${sv.code.slice(0,3)} ${sv.code.slice(3)}</div>${sv.code===DEF_CODE?'<div class="s"><b class="bad-t">Standart kod — oʻzgartiring</b></div>':''}<div class="qk"><button class="btn sm" type="button" id="sv-code">Oʻzgartirish</button><button class="btn sm" type="button" id="sv-copy">Nusxalash</button></div></div>
       <div class="scard"><div class="l">Klient xizmat paroli</div><div class="big ${!sv.svcPass?'bad-t':sv.svcPass==='0000'?'bad-t':'ok-t'}">${!sv.svcPass?'Oʻrnatilmagan':sv.svcPass==='0000'?'Standart (0000) — oʻzgartiring':'Oʻrnatilgan'}</div><div class="s">Qulfni ochish <kbd>${esc(sv.hotkey||'Ctrl+Alt+K')}</kbd> va ulanish sozlamalari uchun · <button class="btn sm" type="button" id="sv-pw">Oʻzgartirish</button></div></div>
     </div>
     <div class="scard sync"><div><div class="l">Admin kompyuter vaqti</div><div class="big mono" id="srv-clk">${hms(now)}</div><div class="s">${dstr(now)}</div></div>
@@ -2110,7 +2165,15 @@ function pcsServer(b,tabs){
   const again=()=>setPcs(b);
   $('#sv-ip').onchange=e=>{const x=e.target.value.trim();if(!IP_RE.test(x)){e.target.classList.add('bad');return toast('IP manzil notoʻgʻri','err')}e.target.classList.remove('bad');sv.ip=x;save();toast('Server IP saqlandi')};
   $('#sv-port').onchange=e=>{const x=Math.round(+e.target.value);if(!(x>=1&&x<=65535)){e.target.classList.add('bad');return toast('Port 1 dan 65535 gacha boʻlishi kerak','err')}e.target.classList.remove('bad');sv.port=x;save();toast('Port saqlandi');if(NET)netStart()};
-  $('#sv-new').onclick=()=>confirmM('Yangi ulanish kodi','Yangi kod yaratilsinmi? Allaqachon juftlangan kompyuterlar ulanishda davom etadi, yangi kompyuterlar faqat yangi kod bilan ulanadi.',()=>{sv.code=String(100000+Math.floor(Math.random()*900000));addLog('info','Yangi ulanish kodi yaratildi');save();again()},'Yaratish');
+  // Kodni admin oʻzi kiritadi (dastur oʻzi yaratmaydi); klientlar shu kod bilan juftlanadi
+  $('#sv-code').onclick=()=>guard(null,'Ulanish kodini oʻzgartirish',()=>modal({title:'Ulanish kodi',
+    body:`<div class="frm"><p style="margin:0">Yangi kompyuterlar klient dasturida shu kodni kiritib ulanadi. Allaqachon juftlangan kompyuterlar kodsiz ulanishda davom etadi.</p>
+      <label>Kod (6 ta raqam)<input id="sc-code" class="mono" inputmode="numeric" maxlength="6" autocomplete="off" value="${esc(sv.code)}"></label><div class="err" id="sc-e"></div></div>`,
+    actions:[{label:'Bekor qilish'},{label:'Saqlash',cls:'pri',run:()=>{const x=v('sc-code').replace(/\s/g,'');
+      if(!/^\d{6}$/.test(x))return $('#sc-e').textContent='Kod 6 ta raqamdan iborat boʻlishi kerak',false;
+      if(x===sv.code)return toast('Oʻzgarish yoʻq');
+      sv.code=x;rlReset('pair:');addLog('info',`Ulanish kodi oʻzgartirildi — ${me().name}`);save();again();toast('Yangi kod saqlandi')}}],
+    onMount:ov=>{const i=$('#sc-code',ov);i.select();i.addEventListener('keydown',e=>{if(e.key==='Enter')$('.dlg-f .pri',ov).click()})}}));
   $('#sv-copy').onclick=()=>{const c=sv.code;try{navigator.clipboard.writeText(c).then(()=>toast('Kod nusxalandi: '+c),()=>toast('Nusxalab boʻlmadi — kod: '+c,'err'))}catch(e){toast('Nusxalab boʻlmadi — kod: '+c,'err')}};
   $('#sv-pw').onclick=()=>{let hk=sv.hotkey||'Ctrl+Alt+K';
     modal({title:'Klient xizmat paroli',body:`<div class="frm"><p style="margin:0">Klient kompyuterda qulfni qoʻlda ochish va ulanish sozlamalarini ochish uchun soʻraladi. Agentda saqlanadi, shuning uchun admin dasturi oʻchiq boʻlsa ham ishlaydi.</p>
@@ -2296,7 +2359,7 @@ function setUsers(b){
   $$('[data-um]',b).forEach(x=>x.onclick=()=>{const u=S.users.find(y=>y.login===x.dataset.um),self=u.login===S.user,lastAdmin=u.role==='admin'&&S.users.filter(y=>y.role==='admin'&&y.active!==false).length<2;
     popMenu(x,[{icon:MI.edit,label:u.role==='admin'?'Tahrirlash (ism, rol)':'Tahrirlash va ruxsatlar',run:()=>userModal(u.login)},
       {icon:MI.key,label:u.pass?'Parolni oʻzgartirish':'Parol oʻrnatish',run:()=>userPwModal(u.login)},
-      ...(u.pass?[{icon:MI.key,label:'Parolni olib tashlash',disabled:u.role==='admin'&&!!S.users.find(y=>y.role!=='admin'&&y.pass),run:()=>confirmM('Parolni olib tashlash',`${esc(u.name)} parolsiz kiradigan boʻladi.`,()=>{u.pass='';addLog('warn',`Parol olib tashlandi: ${u.name} — ${me().name}`);commit()},'Olib tashlash')}]:[]),
+      ...(u.pass?[{icon:MI.key,label:'Parolni olib tashlash',disabled:u.role==='admin'&&!!S.users.find(y=>y.role!=='admin'&&y.pass),run:()=>confirmM('Parolni olib tashlash',`${esc(u.name)} parolsiz kiradigan boʻladi.`,()=>{u.pass='';delete u.defPw;addLog('warn',`Parol olib tashlandi: ${u.name} — ${me().name}`);commit()},'Olib tashlash')}]:[]),
       {icon:MI.lock,label:u.active===false?'Faollashtirish':'Bloklash',disabled:self||(u.active!==false&&lastAdmin),run:()=>{u.active=u.active===false;addLog('warn',`${u.active?'Faollashtirildi':'Bloklandi'}: ${u.name} — ${me().name}`);commit()}},
       '-',{icon:MI.del,label:'Oʻchirish',danger:true,disabled:self||lastAdmin,run:()=>confirmM('Foydalanuvchini oʻchirish',`${esc(u.name)} (${esc(u.login)}) oʻchirilsinmi? Jurnaldagi yozuvlar saqlanadi.`,()=>{S.users=S.users.filter(y=>y!==u);addLog('warn',`Foydalanuvchi oʻchirildi: ${u.name} — ${me().name}`);commit()},'Oʻchirish')}])});
 }
@@ -2308,20 +2371,21 @@ function userModal(login){
     <div class="row2"><label>Login<input id="us-l" value="${esc(u.login)}"${login?' disabled':''} autocomplete="off"></label>${login?'':'<label>Parol (ixtiyoriy)<input id="us-p" type="password" autocomplete="new-password"></label>'}</div>
     <div class="flabel" id="us-pw">Ruxsatlar<div class="pgrid">${PERMS.map(([k,l,d])=>`<label><input type="checkbox" data-up="${k}"${pp[k]?' checked':''}><span>${l}${d?`<small>${d}</small>`:''}</span></label>`).join('')}</div>
     <span class="note">Belgilanmagan amallarni bajarishda administrator paroli soʻraladi.</span></div><div class="err" id="us-e"></div></div>`,
-    actions:[{label:'Bekor qilish'},{label:'Saqlash',cls:'dark',run:ov=>{const n=v('us-n').trim(),l=v('us-l').trim().toLowerCase(),r=v('us-r'),e=$('#us-e');
+    actions:[{label:'Bekor qilish'},{label:'Saqlash',cls:'dark',run:async ov=>{const n=v('us-n').trim(),l=v('us-l').trim().toLowerCase(),r=v('us-r'),e=$('#us-e');
       if(!n||!l)return e.textContent='Ism va login majburiy',false;
       if(!login&&S.users.some(x=>x.login===l))return e.textContent='Bu login band',false;
       if(login&&u.role==='admin'&&r!=='admin'&&S.users.filter(x=>x.role==='admin').length<2)return e.textContent='Oxirgi administratorning rolini oʻzgartirib boʻlmaydi',false;
       const perms={};$$('[data-up]',ov).forEach(x=>perms[x.dataset.up]=x.checked);
       if(login){u.name=n;u.role=r;u.perms=perms;addLog('info',`Foydalanuvchi oʻzgartirildi: ${n} — ${me().name}`)}
-      else{S.users.push({login:l,name:n,role:r,pass:v('us-p'),active:true,perms});addLog('info',`Yangi foydalanuvchi: ${n} (${r==='admin'?'administrator':'operator'}) — ${me().name}`)}
+      else{const pass=await pwHash(v('us-p'));if(S.users.some(x=>x.login===l))return e.textContent='Bu login band',false;
+        S.users.push({login:l,name:n,role:r,pass,active:true,perms});addLog('info',`Yangi foydalanuvchi: ${n} (${r==='admin'?'administrator':'operator'}) — ${me().name}`)}
       commit();toast('Saqlandi')}}],
     onMount:ov=>{const t=()=>{$('#us-pw',ov).hidden=v('us-r')==='admin'};$('#us-r',ov).onchange=t;t()}});
 }
 function userPwModal(login){const u=S.users.find(x=>x.login===login);
   modal({title:`${u.name} — parol`,body:`<div class="frm"><label>Yangi parol<input id="up-1" type="password" autocomplete="new-password"></label><label>Parolni takrorlang<input id="up-2" type="password" autocomplete="new-password"></label><div class="err" id="up-e"></div></div>`,
-    actions:[{label:'Bekor qilish'},{label:'Saqlash',cls:'dark',run:()=>{const a=v('up-1');if(!a)return $('#up-e').textContent='Parolni kiriting',false;if(a!==v('up-2'))return $('#up-e').textContent='Parollar mos kelmadi',false;
-      u.pass=a;addLog('info',`Parol oʻrnatildi: ${u.name} — ${me().name}`);commit();toast('Parol saqlandi')}}]});
+    actions:[{label:'Bekor qilish'},{label:'Saqlash',cls:'dark',run:async()=>{const a=v('up-1');if(!a)return $('#up-e').textContent='Parolni kiriting',false;if(a!==v('up-2'))return $('#up-e').textContent='Parollar mos kelmadi',false;
+      u.pass=await pwHash(a);delete u.defPw;addLog('info',`Parol oʻrnatildi: ${u.name} — ${me().name}`);commit();toast('Parol saqlandi')}}]});
 }
 
 /* ---------- Chegirmalar: qarz toʻlovida ---------- */
@@ -2530,10 +2594,10 @@ function openShell(n){sh.n=n;let el=$('#shell');
     $('#sh-x').onclick=closeShell;$('#sh-pc').onchange=e=>{sh.n=+e.target.value;sh.toast=null;renderShell()};
     const scr=$('#kc-scr');
     scr.addEventListener('click',kcClick);
-    scr.addEventListener('submit',e=>{if(e.target.id!=='lk-lf')return;e.preventDefault();const p=pcBy(sh.n),r=klLogin(p,v('lk-l'),v('lk-p'));
-      if(r.err){$('#lk-e').textContent=r.err;$('#lk-p').value='';$('#lk-p').focus();return}
+    scr.addEventListener('submit',e=>{if(e.target.id!=='lk-lf')return;e.preventDefault();const p=pcBy(sh.n);klLogin(p,v('lk-l'),v('lk-p')).then(r=>{
+      if(r.err){const pe=$('#lk-p');$('#lk-e').textContent=r.err;if(pe){pe.value='';pe.focus()}return}
       addLog('info',`PC ${p.n}: mijoz qulf ekranidan akkaunt bilan kirdi (${r.name})`);save();renderNav();if(ui.view==='zal'){renderGrid();updateToolbar()}
-      kcToast(`Xush kelibsiz, ${r.name}`,`Balans: ${som(r.balance)}`,'green');renderShell()})}
+      kcToast(`Xush kelibsiz, ${r.name}`,`Balans: ${som(r.balance)}`,'green');renderShell()})})}
   renderShell()}
 function closeShell(){const el=$('#shell');if(el)el.remove();sh.n=null;sh.toast=null}
 function kcView(p,now){return p.status==='off'||p.pwrOff?'off':(p.bootUntil||0)>now?'boot':p.session&&p.status==='busy'?'desk':'lock'}
@@ -2603,23 +2667,26 @@ function kcDrag(){const w=$('#kc-w');if(!w)return;let d=null;
   w.onpointermove=e=>{if(!d)return;const x=Math.max(0,Math.min(d.sr.width-d.w,e.clientX-d.sr.left-d.dx)),y=Math.max(0,Math.min(d.sr.height-d.h,e.clientY-d.sr.top-d.dy));
     sh.pos={x:x/d.sr.width*100,y:y/d.sr.height*100};w.style.left=sh.pos.x+'%';w.style.top=sh.pos.y+'%';w.style.right='auto'};
   w.onpointerup=()=>{d=null;w.classList.remove('drag')}}
-function klLogin(p,login,pass){
-  if(active(p))return {err:'Kompyuter band'};
+async function klLogin(p,login,pass){
+  if(active(p))return {err:'Kompyuter band',reason:'busy'};
   const c=S.clients.find(x=>x.login===String(login).trim().toLowerCase());
-  if(!c||c.pass!==pass)return {err:'Login yoki parol notoʻgʻri'};
-  const other=S.pcs.find(x=>x.session&&x.session.clientId===c.id);if(other)return {err:`Siz PC ${other.n} da oʻynayapsiz`};
-  const t=S.tariffs.find(x=>x.type==='hour'&&applies(x)&&grpAllows(p.group,x));if(!t)return {err:'Hozir amal qiladigan tarif yoʻq — administratorga murojaat qiling'};
-  if(c.balance<t.price/60)return {err:`Balans yetarli emas (${som(c.balance)}). Administratorda toʻldiring.`};
+  // parolsiz akkauntga qulf ekranidan kirib boʻlmaydi (klient qobigʻi ham boʻsh parol yubormaydi)
+  if(!c||!c.pass||!(await pwVerify(c.pass,pass)))return {err:'Login yoki parol notoʻgʻri',reason:'bad_credentials'};
+  if(active(p))return {err:'Kompyuter band',reason:'busy'};// parol tekshirilguncha band boʻlgan boʻlishi mumkin
+  const other=S.pcs.find(x=>x.session&&x.session.clientId===c.id);if(other)return {err:`Siz PC ${other.n} da oʻynayapsiz`,reason:'busy'};
+  const t=S.tariffs.find(x=>x.type==='hour'&&applies(x)&&grpAllows(p.group,x));if(!t)return {err:'Hozir amal qiladigan tarif yoʻq — administratorga murojaat qiling',reason:'no_tariff'};
+  if(c.balance<t.price/60)return {err:`Balans yetarli emas (${som(c.balance)}). Administratorda toʻldiring.`,reason:'low_balance'};
   startSession(p.n,{clientId:c.id,mode:'balance',tariffId:t.id,note:'Qulf ekranidan kirdi'});p.lastEnd=null;return {err:'',name:c.name,balance:c.balance}}
 
 /* =================== Foydalanuvchini almashtirish =================== */
 function loginModal(start){
   const us=S.users.filter(u=>u.active!==false);
   const def=us.find(u=>u.login===S.user)||us[0];
-  const old=S.users.some(u=>u.pass==='admin'||u.pass==='1111');
+  // defPw — parol hashga oʻtkazilganda eski prototip paroli (admin / 1111) ekani eslab qolinadi
+  const old=S.users.some(u=>u.defPw||u.pass==='admin'||u.pass==='1111');
   modal({title:start?`${S.settings.name} — kirish`:'Foydalanuvchini almashtirish',locked:!!start,body:`<div class="frm"><label>Foydalanuvchi<select id="lg-u">${us.map(u=>`<option value="${esc(u.login)}"${u===def?' selected':''}>${esc(u.name)} (${u.role==='admin'?'administrator':'operator'})</option>`).join('')}</select></label>
     <label id="lg-pw">Parol<input id="lg-p" type="password" autocomplete="off"></label>${old?'<div class="note">Prototipdagi boshlangʻich parollar: admin — <b>admin</b>, operator — <b>1111</b></div>':''}<div class="err" id="lg-e"></div></div>`,
-    actions:[...(start?[]:[{label:'Bekor qilish'}]),{label:'Kirish',cls:'pri',run:()=>{const u=us.find(x=>x.login===v('lg-u'));if(!u)return false;if((u.pass||'')!==(u.pass?v('lg-p'):''))return $('#lg-e').textContent='Parol notoʻgʻri',false;
+    actions:[...(start?[]:[{label:'Bekor qilish'}]),{label:'Kirish',cls:'pri',run:async()=>{const u=us.find(x=>x.login===v('lg-u'));if(!u)return false;if(u.pass&&!(await pwVerify(u.pass,v('lg-p'))))return $('#lg-e').textContent='Parol notoʻgʻri',false;
       S.user=u.login;ui.elev=0;addLog('info',`Tizimga kirdi: ${u.name}`);if(!viewOk(ui.view))ui.view='zal';commit();toast(`Xush kelibsiz, ${u.name}`)}}],
     onMount:ov=>{const t=()=>{const u=us.find(x=>x.login===v('lg-u'));$('#lg-pw',ov).hidden=!(u&&u.pass)};$('#lg-u',ov).onchange=t;t();
       $('#lg-p',ov).addEventListener('keydown',e=>{if(e.key==='Enter')$('.dlg-f .pri',ov).click()})}});
@@ -2658,13 +2725,8 @@ async function netResyncAll(){if(!NET)return;for(const p of S.pcs){if(!online(p)
 function netMaybeWake(p){if(NET&&p&&!online(p)&&p.mac&&S.settings.beh.autoWake)wake([p])}
 function sendRaw(id,type,payload){NET.send(id,env(type,payload))}
 async function sha256hex(str){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
-const b64=u8=>btoa(String.fromCharCode(...new Uint8Array(u8)));
 async function svcHash(){const pw=S.settings.srv.svcPass||'';if(net.svc.for===pw)return net.svc.hash;
-  if(!pw){net.svc.for=pw;net.svc.hash='';return ''}
-  const it=120000,salt=crypto.getRandomValues(new Uint8Array(16));
-  const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveBits']);
-  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:it,hash:'SHA-256'},key,256);
-  net.svc.for=pw;net.svc.hash=`pbkdf2$${it}$${b64(salt)}$${b64(bits)}`;return net.svc.hash}
+  const h=pw?await pwHash(pw):'';net.svc.for=pw;net.svc.hash=h;return h}
 const wphash=d=>{if(!d)return null;let h=5381;for(let i=0;i<d.length;i+=37)h=((h<<5)+h+d.charCodeAt(i))>>>0;return 'w'+d.length.toString(36)+h.toString(36)};
 const sidNum=x=>{let h=2166136261;for(const c of String(x)){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0};
 function pcByName(name){const q=String(name||'').trim().toLowerCase();
@@ -2727,11 +2789,22 @@ async function netMsg(id,m){const c=net.conn[id];if(!c)return;
     case 'auth.login':return authLogin(id,p,P);
     default:return sendRaw(id,'error',{re:m.id,code:'bad_request',message:'Nomaʼlum xabar: '+m.type})}
 }
-async function pairReq(id,m,P){const sv=S.settings.srv,name=String(P.name||'').trim(),code=String(P.code||'');
-  const deny=(reason,msg)=>{sendRaw(id,'pair.denied',{reason,message:msg});addLog('warn',`Juftlash rad etildi (${reason}): "${name}"`)};
-  if(code!==sv.code)return deny('bad_code','Ulanish kodi notoʻgʻri. Admin kompyuterda koʻrsatilgan kodni kiriting.');
+async function pairReq(id,m,P){const sv=S.settings.srv,name=String(P.name||'').trim(),code=String(P.code||''),ip=(net.conn[id]&&net.conn[id].ip)||'?';
+  const deny=(reason,msg,quiet)=>{sendRaw(id,'pair.denied',{reason,message:msg});if(!quiet)addLog('warn',`Juftlash rad etildi (${reason}): "${name}"${ip!=='?'?' — '+ip:''}`)};
+  // Kodni terib koʻrishdan himoya: blok vaqtida kod umuman tekshirilmaydi, jurnal ham toʻldirilmaydi
+  const wait=Math.max(rlWait('pair:'+ip),rlWait('pair:*'));
+  if(wait){deny('rate_limited',rlMsg(wait),true);setTimeout(()=>NET.close(id),100);return}
+  if(code!==sv.code){
+    const blockedIp=rlFail('pair:'+ip,5,10*MIN,10*MIN),blockedAll=rlFail('pair:*',20,10*MIN,10*MIN);
+    if(blockedAll){addLog('warn','Ulanish kodini terib koʻrish aniqlandi — juftlash 10 daqiqaga toʻxtatildi');toast('Ulanish kodini terib koʻrish aniqlandi — juftlash 10 daqiqaga toʻxtatildi','err');save()}
+    else if(blockedIp){addLog('warn',`${ip}: ulanish kodi koʻp marta notoʻgʻri kiritildi — 10 daqiqaga bloklandi`);save()}
+    return deny('bad_code','Ulanish kodi notoʻgʻri. Admin kompyuterda koʻrsatilgan kodni kiriting.')}
   const p=pcByName(name);
   if(!p)return deny('unknown_pc',`Bu nom bilan kompyuter roʻyxatda yoʻq: "${name}". Avval Sozlamalar › Kompyuterlar boʻlimida shu nomli kompyuter qoʻshing.`);
+  // Juftlangan kompyuter oʻrnini kod bilan egallab boʻlmaydi: avval adminda «Uzish» bosiladi
+  if(p.token){toast(`PC ${p.n} qayta juftlanmoqchi — kerak boʻlsa Sozlamalar › Kompyuterlar boʻlimida «Uzish» ni bosing`);
+    return deny('already_paired',`«${name}» allaqachon juftlangan. Admin kompyuterda Sozlamalar › Kompyuterlar boʻlimida shu kompyuter uchun «Uzish» ni bosing, soʻng qayta ulaning.`)}
+  rlOk('pair:'+ip);
   if(net.byPc[p.n]!=null){const oc=net.byPc[p.n];delete net.byPc[p.n];NET.close(oc)}
   const tok=[...crypto.getRandomValues(new Uint8Array(32))].map(x=>x.toString(16).padStart(2,'0')).join('');
   p.token=await sha256hex(tok);p.cname=name;
@@ -2749,12 +2822,22 @@ async function helloReq(id,m,P){const hash=await sha256hex(String(P.token||''));
   sendRaw(id,'hello.ok',{pcId:p.n,name,serverTime:now,session:sp,lock:dLock(p),behaviour:dBeh(),agent:await dAgent()});
   net.sess[p.n]=sessCur(p,sp);net.lockSig[p.n]=JSON.stringify(dLock(p));
   fastStartupWarn(p,P.fastStartup);addLog('info',`PC ${p.n}: agent ulandi (${P.version||'?'})`);netRefresh()}
+// Bir kompyuterdan bir vaqtda bitta tekshiruv: parallel soʻrovlar cheklovni chetlab oʻtmasin
+const authBusy=new Set();
 async function authLogin(id,p,P){const deny=(reason,msg)=>sendRaw(id,'auth.denied',{reason,message:msg});
-  const r=klLogin(p,String(P.login||''),String(P.password||''));
-  if(r.err){const reason=/band|oʻynayapti/.test(r.err)?'busy':/[Bb]alans/.test(r.err)?'low_balance':'bad_credentials';return deny(reason,r.err)}
+  // Mijoz parolini terib koʻrishdan himoya: kompyuter boʻyicha va akkaunt boʻyicha
+  const login=String(P.login||'').trim().toLowerCase(),kp='auth:pc'+p.n,ku='auth:u:'+login,wait=Math.max(rlWait(kp),rlWait(ku));
+  if(wait)return deny('rate_limited',rlMsg(wait));
+  if(authBusy.has(p.n))return deny('rate_limited','Oldingi urinish tekshirilmoqda — biroz kuting');
+  authBusy.add(p.n);let r;try{r=await klLogin(p,login,String(P.password||''))}finally{authBusy.delete(p.n)}
+  if(r.err){
+    if(r.reason==='bad_credentials'&&(rlFail(kp,5,5*MIN,5*MIN)|rlFail(ku,10,15*MIN,15*MIN))){
+      addLog('warn',`PC ${p.n}: mijoz paroli koʻp marta notoʻgʻri kiritildi (@${login}) — kirish vaqtincha bloklandi`);save()}
+    return deny(r.reason==='no_tariff'?'bad_credentials':r.reason,r.err)}
+  rlOk(kp);rlOk(ku);
   addLog('info',`PC ${p.n}: mijoz qulf ekranidan akkaunt bilan kirdi (${r.name})`);
   const now=Date.now(),sp=dSession(p,now);
-  sendRaw(id,'auth.ok',{login:String(P.login||'').trim().toLowerCase(),balance:r.balance,remainingMs:sp?sp.remainingMs||0:0,rate:sp?sp.rate:0});
+  sendRaw(id,'auth.ok',{login,balance:r.balance,remainingMs:sp?sp.remainingMs||0:0,rate:sp?sp.rate:0});
   sendRaw(id,'session.start',sp);net.sess[p.n]=sessCur(p,sp);netRefresh()}
 /* ---- har soniyada: quvvat, qulf, seans oʻzgarishlari, xabarlar ---- */
 function netTick(){if(!NET)return;const now=Date.now();

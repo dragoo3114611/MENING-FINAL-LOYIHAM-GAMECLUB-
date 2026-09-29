@@ -9,7 +9,10 @@ const net = require('./server');
 let db = null, dbFile = '', dbErr = '';
 try { db = require('./db'); } catch (e) { dbErr = e.message || String(e); }
 
-if (!app.requestSingleInstanceLock()) app.quit();
+// Ikkinchi nusxa oyna ham, server ham ochmaydi: baza va port birinchi nusxada band.
+// app.quit() darhol toʻxtatmaydi, shuning uchun pastda oyna faqat birinchi nusxada yaratiladi.
+const primary = app.requestSingleInstanceLock();
+if (!primary) app.quit();
 
 let win, quitting = false;
 function createWindow() {
@@ -86,7 +89,9 @@ function allowFirewall(port) {
   });
 }
 
-app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
-app.whenReady().then(createWindow);
+if (primary) {
+  app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+  app.whenReady().then(createWindow);
+}
 app.on('before-quit', () => { quitting = true; net.stop(); });
 app.on('window-all-closed', () => app.quit());

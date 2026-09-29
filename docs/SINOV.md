@@ -26,6 +26,15 @@ Versiya: ____________  Sana: ____________  Tekshirgan: ____________
 - [ ] B4. Klient ekranining yuqori chap burchagida kompyuter nomi turibdi
 - [ ] B5. Noto'g'ri kod bilan ulanish rad etildi va sabab ko'rindi
 - [ ] B6. Adminda ro'yxatda yo'q nom bilan ulanish rad etildi
+- [ ] B7. Adminda Server ulanishi → Ulanish kodi → «O'zgartirish» bilan o'z kodingiz
+      (6 ta raqam) kiritildi: yangi kompyuter **shu kod** bilan ulandi, eski kod rad etildi,
+      juftlangan kompyuterlar uzilmadi
+- [ ] B8. Kod 5 marta noto'g'ri kiritildi → keyingi urinishda "Juda ko'p noto'g'ri
+      urinish" chiqdi, jurnalda ogohlantirish bor; kod o'zgartirilgach blok olib tashlandi
+- [ ] B9. Juftlangan kompyuterni qayta juftlashga urinish rad etildi ("allaqachon
+      juftlangan"), adminda toast chiqdi; «Uzish» bosilgach shu kompyuter kod bilan
+      qayta juftlandi
+- [ ] B10. Seans ochiq kompyuterda «Uzish» bosilganda "avval yakunlang" chiqdi
 
 ## C. Seans
 
@@ -142,6 +151,17 @@ Versiya: ____________  Sana: ____________  Tekshirgan: ____________
       klient baribir qulflangan qoladi, pastda "Admin bilan aloqa yo'q"
 - [ ] S7. Klient kompyuter qayta yuklandi — seans holati tiklandi, qulf
       o'z holicha qoldi
+- [ ] S8. Xizmat paroli 5 marta noto'g'ri kiritildi → "Juda ko'p noto'g'ri urinish —
+      N soniyadan keyin" chiqdi; kutib, to'g'ri parol bilan ochildi
+- [ ] S9. Parolsiz buyruq rad etiladi: seans davomida PowerShell'dan
+      `\\.\pipe\dust2agent` ga `{"type":"pause","json":"{}"}` yozishga urinish natija bermadi
+      (klient jurnalida "Quvurga begona dastur ulandi" yoki "xizmat parolisiz rad etildi")
+- [ ] S10. Juftlangan kompyuterda Ctrl+Alt+P → parol → Ulanish sozlamalari →
+      "Saqlash va ulanish" qayta parol so'ramadi (5 daqiqa ichida) va ishladi
+- [ ] S11. Mijoz paroli 5 marta noto'g'ri kiritildi → "Juda ko'p noto'g'ri urinish"
+      chiqdi, jurnalda ogohlantirish bor
+- [ ] S12. Yangilangandan keyin eski operator/mijoz parollari bilan kirish ishladi
+      (parollar bazada `pbkdf2$…` ko'rinishiga o'tdi, mijoz oynasida parol ko'rinmaydi)
 
 ### Hisobot — kassa
 

@@ -373,7 +373,8 @@
                   "enum": [
                     "bad_code",
                     "unknown_pc",
-                    "already_paired"
+                    "already_paired",
+                    "rate_limited"
                   ]
                 },
                 "message": {
@@ -694,7 +695,8 @@
                   "enum": [
                     "bad_credentials",
                     "low_balance",
-                    "busy"
+                    "busy",
+                    "rate_limited"
                   ]
                 },
                 "message": {

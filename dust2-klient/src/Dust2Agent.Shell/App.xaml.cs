@@ -78,8 +78,8 @@ public partial class App : Application
         _agent.StateChanged += OnState;
         _agent.Toast += Notify;
         _agent.AdminMessage += NotifyMessage;
-        _agent.UnlockResult += ok => Primary()?.OnPasswordChecked(ok, unlock: true);
-        _agent.PasswordResult += ok => Primary()?.OnPasswordChecked(ok, unlock: false);
+        _agent.UnlockResult += (ok, message) => Primary()?.OnPasswordChecked(ok, unlock: true, message);
+        _agent.PasswordResult += (ok, message) => Primary()?.OnPasswordChecked(ok, unlock: false, message);
         _agent.ConnectionChanged += connected =>
         {
             if (!connected) _log?.Warn("Xizmat bilan aloqa yo'q");

@@ -38,6 +38,8 @@ function start(p, onEvent) {
     s.on('listening', () => { wss = s; finish(); });
     s.on('error', e => {
       lastErr = e.code === 'EADDRINUSE' ? `${p}-port band (boshqa dastur ishlatyapti)` : (e.message || String(e));
+      // ochilmay qolgan server obyekti osilib qolmasin (keyingi urinish yangisini yaratadi)
+      if (wss !== s) try { s.close(); } catch (x) {}
       emit({ type: 'server', info: info() });
       finish();
     });

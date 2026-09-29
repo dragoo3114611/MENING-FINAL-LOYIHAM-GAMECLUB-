@@ -401,3 +401,58 @@ Qaysi oyna ishlatilishini `ShellScreen.NoticeInOwnWindow(screen)` hal qiladi:
 seans ochiq bo'lsa yangi oyna, qolgan hollarda qulf oynasining o'z qatlami
 (u butun ekranni egallaydi va chiroyliroq). Qulf ekraniga o'tilganda yangi
 oyna yopiladi — ikkita "topmost" oyna bir-birini to'smasin.
+
+## 22. Xavfsizlik tuzatishlari (2026-09-29)
+
+**Muammo.** Kod tekshiruvida quyidagilar topildi:
+
+- Xizmat paroli faqat qobiq oynasida so'ralardi. Xizmat quvurdan kelgan `pause`,
+  `unpair` va `connect` ni tekshiruvsiz bajarardi, quvur esa hamma foydalanuvchilarga
+  ochiq edi. Seans paytida mijoz kichik skript bilan qulfni butunlay o'chira olardi.
+- Juftlash kodi va mijoz paroliga urinishlar cheklanmagan edi. 6 xonali kod LAN'da
+  tez topiladi. Keyin shu nom bilan juftlangan kompyuter o'rnini egallab, xizmat
+  paroli hashini olish mumkin edi.
+- Operator, admin va mijoz parollari bazada va backup'da ochiq matnda turardi.
+  Mijoz paroli tahrirlash oynasida ko'rinardi.
+
+**Yechim.**
+
+- **Xizmat o'zi tekshiradi.** `ShellCommandPolicy` — admin parol o'rnatgan bo'lsa,
+  `pause`/`unpair`/`connect` uchun parol shart. `ServicePasswordGate` to'g'ri
+  paroldan keyin 5 daqiqa ruxsat beradi. Ruxsat qobiq uzilganda va parol
+  o'zgarganda bekor bo'ladi. 5 ta xatodan keyin 1 → 2 → 4 → 8 → 15 daqiqa blok
+  qo'yiladi. Qobiq ham bunga moslashdi: ulanish sozlamasini saqlash va uzishdan
+  oldin parol so'raydi, agar yaqinda kiritilmagan bo'lsa.
+- **Quvurga faqat qobiq ulanadi.** Xizmat rejimida ulangan jarayonning yo'li
+  (`GetNamedPipeClientProcessId` + `QueryFullProcessImageName`) xizmat yonidagi
+  `Dust2Agent.Shell.exe` bilan solishtiriladi (`ShellIdentity`). Konsol (sinov)
+  rejimida bu tekshiruv o'chiq.
+- **Ulanish kodini admin o'zi belgilaydi.** Dastur kodni o'zi yaratmaydi: «Yangi kod»
+  (tasodifiy) tugmasi o'rniga «O'zgartirish» qo'yildi (6 ta raqam, faqat admin).
+  Standart `888518` qoldi, u o'zgartirilmaguncha ogohlantirish ko'rinadi. Standart
+  xizmat paroli `0000` ham o'zgarmadi.
+- **Urinishlar cheklandi.** Noto'g'ri kod: bitta IP'dan 10 daqiqada 5 ta → shu
+  IP'ga 10 daqiqa blok; hammasi bo'lib 20 ta → juftlash 10 daqiqaga to'xtaydi.
+  Mijoz paroli: bitta kompyuterdan 5 daqiqada 5 ta, bitta akkauntga 15 daqiqada
+  10 ta. Bitta kompyuterdan bir vaqtda faqat bitta tekshiruv o'tadi, shuning uchun
+  parallel so'rovlar cheklovni chetlab o'tolmaydi. Blok vaqtida rad etishlar
+  jurnalni to'ldirmaydi. Yangi sabab: `rate_limited`.
+- **Qayta juftlash — faqat «Uzish» dan keyin.** Juftlangan kompyuter nomi bilan
+  kelgan `pair.request` rad etiladi (`already_paired`, protokolda oldindan
+  yozilgan edi). Kompyuterlar jadvaliga «Uzish» tugmasi qo'shildi; seans ochiq
+  bo'lsa ishlamaydi.
+- **Parollar hash qilinadi.** Format klient agentdagi xizmat paroli bilan bir xil:
+  `pbkdf2$120000$salt$hash` (SHA-256). Eski ochiq parollar dastur ochilganda fonda
+  hashga o'tkaziladi, shu vaqt ichida eski parol bilan kirish ham ishlaydi.
+  `defPw` belgisi eski prototip parollari (admin / 1111) haqidagi eslatmani saqlab
+  qoladi. Parolsiz mijoz akkauntiga qulf ekranidan kirib bo'lmaydi.
+- Mayda tuzatishlar: ikkinchi nusxa endi oyna ham, server ham ochmaydi;
+  arxiv vaqti 32 bitga qirqilmaydi (`db.js`); ochilmay qolgan WebSocket server
+  yopiladi.
+
+**Keyinga qoldirildi.**
+
+- Tarmoq trafigini shifrlash (`wss://` va sertifikat izini tekshirish) — ikkala
+  dasturni bir vaqtda yangilashni talab qiladi.
+- Qobiq tomonida serverni tekshirish (quvur nomini boshqa dastur egallab olishi)
+  va qobiqni ketma-ket yopib turishga qarshi himoya.

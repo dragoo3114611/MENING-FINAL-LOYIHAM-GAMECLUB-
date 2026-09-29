@@ -90,7 +90,11 @@ yuborilardi va kompyuter yonmasdi.
 |---|---|
 | `bad_code` | kod noto'g'ri |
 | `unknown_pc` | bunday nomli kompyuter adminda yo'q — **avval qo'lda qo'shilishi kerak** ([qaror 9](../docs/QARORLAR.md)) |
-| `already_paired` | shu nom boshqa kompyuterga juftlangan (avval adminda uzish kerak) |
+| `already_paired` | shu nomli kompyuter allaqachon juftlangan — avval adminda Sozlamalar → Kompyuterlar → **«Uzish»** bosiladi ([qaror 22](../docs/QARORLAR.md)) |
+| `rate_limited` | kod ko'p marta noto'g'ri kiritildi: bitta IP'dan 10 daqiqada 5 ta xato → shu IP 10 daqiqaga, hammasi bo'lib 20 ta xato → juftlash 10 daqiqaga to'xtaydi. Blok vaqtida kod tekshirilmaydi, ulanish yopiladi |
+
+Ulanish kodini admin o'zi belgilaydi (6 ta raqam, Sozlamalar → Kompyuterlar → Server
+ulanishi → «O'zgartirish»); dastur kodni o'zi yaratmaydi. Standart kod — `888518`.
 
 Token — 32 baytli tasodifiy qiymat (hex). Klient uni **DPAPI** bilan shifrlab
 saqlaydi; server faqat SHA-256 hashini saqlaydi.
@@ -230,7 +234,10 @@ server → klient   auth.ok     { login, balance, remainingMs, rate }
 server → klient   auth.denied { reason }
 ```
 
-`reason`: `bad_credentials` | `low_balance` | `busy` (mijoz boshqa kompyuterda).
+`reason`: `bad_credentials` | `low_balance` | `busy` (kompyuter band yoki mijoz boshqa
+kompyuterda) | `rate_limited` (parol ko'p marta noto'g'ri kiritildi: bitta kompyuterdan 5 daqiqada
+5 ta xato yoki bitta akkauntga 15 daqiqada 10 ta xato — vaqtincha blok). `message` — mijozga
+ko'rsatiladigan matn. Mijoz paroli adminda PBKDF2 hash ko'rinishida saqlanadi.
 
 ---
 

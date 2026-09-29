@@ -172,6 +172,12 @@ parolsiz **Admin** operatori.
    belgilang (hisobot, kassa summasi, narxlar, chegirma…).
 3. **Sozlamalar → Kompyuterlar** — har bir kompyuterni **qo'lda qo'shing**:
    nom (masalan `PC 01`), zona, IP va MAC manzil.
+4. **Sozlamalar → Kompyuterlar → Server ulanishi → Ulanish kodi → «O'zgartirish»** —
+   o'zingiz tanlagan **6 ta raqam**ni kiriting. Dastur kodni o'zi yaratmaydi:
+   standart kod `888518`, u o'zgartirilmaguncha kartada «Standart kod — o'zgartiring»
+   yozuvi turadi. Kodni faqat administrator (yoki admin paroli bilan) o'zgartira oladi.
+   Yangi kod darhol ishlaydi; allaqachon juftlangan kompyuterlar kodsiz ulanishda
+   davom etadi.
 
 > MAC manzil Wake-on-LAN uchun kerak. Uni klient kompyuterda
 > `cmd` → `getmac /v` bilan bilib olish mumkin.
@@ -192,6 +198,18 @@ Har bir o'yin kompyuterida:
 4. **Ulanish** — adminda kompyuter "yondi" deb belgilanadi.
 
 Kompyuter nomi klient ekranining yuqori chap burchagida doimiy ko'rinib turadi.
+
+**Qayta juftlash** (klient qayta o'rnatilgan, Windows almashgan va h.k.): juftlangan
+kompyuter o'rnini kod bilan egallab bo'lmaydi — klient "allaqachon juftlangan" deb
+javob oladi, adminda esa ogohlantirish chiqadi. Avval adminda **Sozlamalar →
+Kompyuterlar** jadvalida shu kompyuter qatoridagi **«Uzish»** tugmasini bosing
+(seans ochiq bo'lsa, avval yakunlang), keyin klientda kodni qayta kiriting. Oldin
+juftlangan klientda ulanish sozlamasini o'zgartirishda **xizmat paroli** ham so'raladi.
+
+Ulanish kodi ketma-ket noto'g'ri kiritilsa (bitta kompyuterdan 5 marta), juftlash
+10 daqiqaga bloklanadi; umuman 20 ta xato bo'lsa — hamma uchun. Jurnalda
+"kodni terib ko'rish" yozuvi paydo bo'ladi. Blokni kutmasdan ochish uchun kodni
+o'zgartirish yetarli.
 
 ## 2.5. Wake-on-LAN (BIOS sozlamasi)
 
@@ -333,6 +351,17 @@ boshqaruv oynasi ochiladi:
 
 Parol o'rnatilgan bo'lsa, avval u so'raladi. Parol admin o'chiq bo'lsa ham
 ishlaydi (klientda hashlangan holda saqlanadi).
+
+Standart xizmat paroli — `0000`. Adminda u o'zgartirilmaguncha "Standart (0000) —
+o'zgartiring" deb ko'rsatiladi; o'zgartirilgan parol ulangan kompyuterlarga darhol
+yuboriladi.
+
+Parolni klient xizmatining o'zi tekshiradi: to'g'ri parol kiritilgach 5 daqiqa
+davomida ulanish sozlamasini o'zgartirish, admindan uzish va dasturni to'xtatish
+mumkin. Parolsiz bu buyruqlar bajarilmaydi — hatto kompyuterdagi boshqa dastur ularni
+xizmatga to'g'ridan-to'g'ri yuborsa ham. Parol ketma-ket 5 marta noto'g'ri kiritilsa,
+tekshiruv 1 daqiqaga to'xtaydi, keyingi har bir xatoda kutish ikki baravar uzayadi
+(eng ko'pi 15 daqiqa).
 
 ## 2.9. Backup
 

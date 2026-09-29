@@ -29,11 +29,16 @@ public sealed class ShellLauncher
     /// <summary>Oxirgi token xatosi — bir xil xato har 3 soniyada takrorlanmasin.</summary>
     private int _lastTokenError;
 
+    /// <summary>
+    /// Qobiq fayli — xizmat bilan bir papkada. Quvurga ulanayotgan dastur ham shu
+    /// yo'l bilan solishtiriladi (<see cref="ShellPipeServer.VerifyClient"/>).
+    /// </summary>
+    public static string ExePath => Path.Combine(AppContext.BaseDirectory, ShellIdentity.ShellExeName);
+
     public ShellLauncher(AgentLog log)
     {
         _log = log;
-        var dir = AppContext.BaseDirectory;
-        _exePath = Path.Combine(dir, "Dust2Agent.Shell.exe");
+        _exePath = ExePath;
     }
 
     /// <summary>Qobiq ishlayaptimi (faol konsol sessiyasida).</summary>

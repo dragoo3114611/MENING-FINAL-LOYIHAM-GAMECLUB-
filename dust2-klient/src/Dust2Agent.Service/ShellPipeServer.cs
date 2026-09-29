@@ -1,10 +1,12 @@
 using System.IO.Pipes;
 using System.Threading.Channels;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
 using Dust2Agent.Common;
+using Microsoft.Win32.SafeHandles;
 
 namespace Dust2Agent.Service;
 
@@ -19,7 +21,17 @@ public sealed class ShellPipeServer : IAsyncDisposable
     private readonly object _lock = new();
     private Channel<string>? _outbox;
 
+    /// <summary>Begona dastur haqidagi oxirgi yozuv — jurnal to'lib ketmasin.</summary>
+    private DateTime _lastRejectLog = DateTime.MinValue;
+
     public ShellPipeServer(AgentLog log) => _log = log;
+
+    /// <summary>
+    /// Quvurga faqat haqiqiy qobiq (<see cref="ShellLauncher.ExePath"/>) ulana oladi.
+    /// Windows xizmati sifatida ishlaganda yoqiladi; konsoldan (sinov uchun) ishga
+    /// tushirilganda o'chiq — u yerda qobiq boshqa papkada turishi mumkin.
+    /// </summary>
+    public bool VerifyClient { get; init; }
 
     /// <summary>Qobiqdan kelgan xabar.</summary>
     public event Action<PipeMessage>? Received;
@@ -56,6 +68,23 @@ public sealed class ShellPipeServer : IAsyncDisposable
     {
         using var server = CreatePipe();
         await server.WaitForConnectionAsync(ct).ConfigureAwait(false);
+
+        // Quvur hamma foydalanuvchilarga ochiq (qobiq oddiy huquq bilan ishlaydi), shuning
+        // uchun ulangan dasturni tekshiramiz: aks holda istalgan skript qobiq nomidan
+        // buyruq yubora olardi ([qaror 22](../../../docs/QARORLAR.md))
+        if (VerifyClient && !IsTrustedClient(server))
+        {
+            try
+            {
+                server.Disconnect();
+            }
+            catch (Exception ex) when (ex is IOException or InvalidOperationException)
+            {
+                // ulanish allaqachon uzilgan
+            }
+            await Task.Delay(250, ct).ConfigureAwait(false);
+            return;
+        }
 
         var reader = new StreamReader(server, Encoding.UTF8);
         var writer = new StreamWriter(server, new UTF8Encoding(false)) { AutoFlush = true };
@@ -150,6 +179,62 @@ public sealed class ShellPipeServer : IAsyncDisposable
             AgentPaths.PipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte,
             PipeOptions.Asynchronous, 64 * 1024, 64 * 1024, security);
     }
+
+    /// <summary>Ulangan dastur xizmat yonidagi qobiq faylimi.</summary>
+    private bool IsTrustedClient(NamedPipeServerStream server)
+    {
+        var path = ClientImagePath(server, out var pid);
+        if (ShellIdentity.IsTrustedShell(path, ShellLauncher.ExePath)) return true;
+
+        var now = DateTime.UtcNow;
+        if (now - _lastRejectLog > TimeSpan.FromSeconds(30))
+        {
+            _lastRejectLog = now;
+            _log.Warn($"Quvurga begona dastur ulandi va rad etildi (pid {pid}, {path ?? "yo'li aniqlanmadi"})");
+        }
+        return false;
+    }
+
+    /// <summary>Quvurning narigi tomonidagi jarayonning to'liq yo'li (aniqlanmasa null).</summary>
+    private static string? ClientImagePath(NamedPipeServerStream server, out uint pid)
+    {
+        if (!GetNamedPipeClientProcessId(server.SafePipeHandle, out pid)) return null;
+
+        var process = OpenProcess(ProcessQueryLimitedInformation, false, pid);
+        if (process == IntPtr.Zero) return null;
+        try
+        {
+            var size = 1024u;
+            var name = new StringBuilder((int)size);
+            return QueryFullProcessImageName(process, 0, name, ref size) ? name.ToString() : null;
+        }
+        finally
+        {
+            CloseHandle(process);
+        }
+    }
+
+    /* ------------------------------- P/Invoke ------------------------------- */
+
+    private const uint ProcessQueryLimitedInformation = 0x1000;
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetNamedPipeClientProcessId(SafePipeHandle pipe, out uint clientProcessId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr OpenProcess(uint desiredAccess,
+        [MarshalAs(UnmanagedType.Bool)] bool inheritHandle, uint processId);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode,
+        EntryPoint = "QueryFullProcessImageNameW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool QueryFullProcessImageName(IntPtr process, uint flags,
+        StringBuilder exeName, ref uint size);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CloseHandle(IntPtr handle);
 
     /// <summary>
     /// Qobiqqa xabar qo'yadi. Hech qachon bloklanmaydi: navbat to'lsa eng eski xabar

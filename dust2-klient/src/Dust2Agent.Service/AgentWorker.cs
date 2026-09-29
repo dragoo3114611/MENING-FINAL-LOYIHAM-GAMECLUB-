@@ -2,6 +2,7 @@ using System.Runtime.Versioning;
 using System.Text.Json;
 using Dust2Agent.Common;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Hosting.WindowsServices;
 
 namespace Dust2Agent.Service;
 
@@ -30,6 +31,9 @@ public sealed class AgentWorker : BackgroundService
     private string _loginError = "";
     private long _pendingDue;
 
+    /// <summary>Xizmat paroli: qisqa muddatli ruxsat va xato urinishlar hisobi.</summary>
+    private readonly ServicePasswordGate _gate = new();
+
     /// <summary>"Qulflash, keyin o'chirish" uchun belgilangan vaqt (UTC).</summary>
     private DateTime? _offAt;
 
@@ -38,7 +42,7 @@ public sealed class AgentWorker : BackgroundService
         _log = log;
         _admin = new AdminConnection(log) { Version = Version() };
         _sessions = new SessionManager(log);
-        _pipe = new ShellPipeServer(log);
+        _pipe = new ShellPipeServer(log) { VerifyClient = WindowsServiceHelpers.IsWindowsService() };
         _wallpaper = new WallpaperCache(log);
         if (OperatingSystem.IsWindows()) _shell = new ShellLauncher(log);
     }
@@ -69,6 +73,8 @@ public sealed class AgentWorker : BackgroundService
         _pipe.Received += OnShellMessage;
         _pipe.ShellConnected += connected =>
         {
+            // Parol bilan olingan ruxsat faqat shu ulanishga tegishli
+            _gate.Revoke();
             if (connected) PushState();
         };
 
@@ -410,6 +416,8 @@ public sealed class AgentWorker : BackgroundService
     {
         if (a is null) return;
         var changed = _config.ServicePassHash != a.ServicePassHash || _config.UnlockCombo != a.UnlockCombo;
+        // Eski parol bilan olingan ruxsat yangi parolga o'tmasin
+        if (_config.ServicePassHash != a.ServicePassHash) _gate.Revoke();
         _config.ServicePassHash = a.ServicePassHash;
         _config.UnlockCombo = string.IsNullOrWhiteSpace(a.UnlockCombo) ? "Ctrl+Alt+P" : a.UnlockCombo;
         if (changed) _config.Save();
@@ -534,6 +542,22 @@ public sealed class AgentWorker : BackgroundService
 
     private void OnShellMessage(PipeMessage msg)
     {
+        // Parol qobiq oynasida so'raladi, lekin xizmat bunga ishonib qolmaydi: bu
+        // buyruqlar faqat xizmat parolini yaqinda to'g'ri kiritgandan keyin bajariladi
+        // ([qaror 22](../../../docs/QARORLAR.md))
+        if (ShellCommandPolicy.NeedsPassword(msg.Type, HasServicePassword) && !_gate.IsGranted(DateTime.UtcNow))
+        {
+            _log.Warn($"Qobiq buyrug'i xizmat parolisiz rad etildi: {msg.Type}");
+            if (msg.Type == PipeTypes.Connect)
+            {
+                _connectPhase = "error";
+                _connectError = "Avval xizmat parolini kiriting";
+            }
+            Toast("Ruxsat yo'q", "Avval xizmat parolini kiriting", "warn");
+            PushState();
+            return;
+        }
+
         switch (msg.Type)
         {
             case PipeTypes.Hello:
@@ -628,27 +652,50 @@ public sealed class AgentWorker : BackgroundService
                 return;
 
             case PipeTypes.VerifyPassword:
-            {
-                var r = msg.As<PasswordRequest>();
-                var ok = string.IsNullOrEmpty(_config.ServicePassHash) ||
-                         PasswordHash.Verify(_config.ServicePassHash, r?.Password ?? "");
-                _pipe.Send(PipeTypes.VerifyPassword, new { ok });
-                return;
-            }
-
             case PipeTypes.Unlock:
             {
                 var r = msg.As<PasswordRequest>();
-                var ok = string.IsNullOrEmpty(_config.ServicePassHash) ||
-                         PasswordHash.Verify(_config.ServicePassHash, r?.Password ?? "");
-                _pipe.Send(PipeTypes.Unlock, new { ok });
-                if (ok) _log.Warn("Qulf xizmat paroli bilan qo'lda ochildi");
+                var (ok, message) = CheckServicePassword(r?.Password ?? "");
+                _pipe.Send(msg.Type, new { ok, message });
+                if (ok && msg.Type == PipeTypes.Unlock) _log.Warn("Qulf xizmat paroli bilan qo'lda ochildi");
                 return;
             }
 
             default:
                 return;
         }
+    }
+
+    private bool HasServicePassword => !string.IsNullOrEmpty(_config.ServicePassHash);
+
+    /// <summary>
+    /// Xizmat parolini tekshiradi. To'g'ri bo'lsa himoyalangan buyruqlarga qisqa muddatli
+    /// ruxsat beriladi; ketma-ket xatolardan keyin tekshiruv vaqtincha to'xtaydi.
+    /// </summary>
+    private (bool Ok, string? Message) CheckServicePassword(string plain)
+    {
+        // Admin parol o'rnatmagan — tekshiradigan narsa yo'q (birinchi o'rnatish)
+        if (!HasServicePassword) return (true, null);
+
+        var now = DateTime.UtcNow;
+        if (_gate.IsBlocked(now, out var wait))
+        {
+            return (false, "Juda ko'p noto'g'ri urinish — " +
+                           $"{Math.Ceiling(wait.TotalSeconds)} soniyadan keyin qayta urinib ko'ring");
+        }
+
+        if (PasswordHash.Verify(_config.ServicePassHash, plain))
+        {
+            _gate.RecordSuccess(now);
+            return (true, null);
+        }
+
+        if (_gate.RecordFailure(now) && _gate.IsBlocked(now, out wait))
+        {
+            _log.Warn("Xizmat paroli ketma-ket noto'g'ri kiritildi — tekshiruv " +
+                      $"{Math.Ceiling(wait.TotalMinutes)} daqiqaga to'xtatildi");
+        }
+        return (false, null);
     }
 
     /* --------------------------------- holat --------------------------------- */
