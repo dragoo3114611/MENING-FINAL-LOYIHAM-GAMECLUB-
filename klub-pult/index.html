@@ -513,6 +513,12 @@ table.pt td.nm{max-width:280px}
 @media(max-width:900px){table.pt td.nm{max-width:150px}table.pt th,table.pt td{padding:7px 6px}}
 table.pt td.nm b,table.pt td.nm small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
 table.pt td.act .btn+.btn{margin-left:6px}
+table.pt th .cr{position:absolute;top:0;right:-4px;width:9px;height:100%;cursor:col-resize;z-index:2;touch-action:none}
+table.pt th .cr::after{content:'';position:absolute;left:4px;top:25%;height:50%;border-left:1px solid var(--line2)}
+table.pt th .cr:hover::after,table.pt th .cr.on::after{border-left:2px solid var(--accent);top:0;height:100%}
+table.pt.rsz{table-layout:fixed;min-width:100%}
+table.pt.rsz td.nm{max-width:none}
+table.pt.rsz td,table.pt.rsz th{overflow:hidden;text-overflow:ellipsis}
 .dlg-h{display:flex;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line2)}
 .dlg-h h3{margin:0;font-size:16px}
 .dlg-h .x{margin-left:auto;border:0;background:none;font-size:22px;line-height:1;cursor:pointer;color:var(--muted);padding:0 4px}
@@ -641,8 +647,8 @@ function rng(seed){return ()=>{seed=(seed*1664525+1013904223)%4294967296;return 
 let S=null;
 const ui={view:'zal',zalMode:'table',sel:new Set(),last:null,lc:null,stf:'all',pcq:'',sort:{k:'n',d:1},
   logLimit:150,logF:'all',logQ:'',logSel:null,logH:220,cq:'',dq:'',dAll:false,rp:null,pm:null};
-try{const u=JSON.parse(localStorage.getItem(LS_UI)||'{}');if(u.zalMode)ui.zalMode=u.zalMode;if(u.logH)ui.logH=u.logH;}catch(e){}
-function saveUI(){try{localStorage.setItem(LS_UI,JSON.stringify({zalMode:ui.zalMode,logH:ui.logH}))}catch(e){}}
+try{const u=JSON.parse(localStorage.getItem(LS_UI)||'{}');if(u.zalMode)ui.zalMode=u.zalMode;if(u.logH)ui.logH=u.logH;if(Array.isArray(u.procCols))ui.procCols=u.procCols;}catch(e){}
+function saveUI(){try{localStorage.setItem(LS_UI,JSON.stringify({zalMode:ui.zalMode,logH:ui.logH,procCols:ui.procCols}))}catch(e){}}
 function save(){const j=JSON.stringify(S);try{localStorage.setItem(LS,j)}catch(e){}try{if(window.kpDb)window.kpDb.save(j)}catch(e){}if(typeof bkSchedule==='function')bkSchedule()}
 function load(){try{const j=(window.kpInitState!=null)?window.kpInitState:localStorage.getItem(LS);if(j){const s=JSON.parse(j);if(s&&s.v===1)return s}}catch(e){}return null}
 
@@ -1188,8 +1194,20 @@ function procsModal(sel){
         addLog('info',`${nm}: ${i>=0?'tozalashda yopiladigan boʻldi':'tozalashda saqlanadigan qilib belgilandi'} — ${me().name}`);save();draw()});
       $$('[data-kill]',ov).forEach(b=>b.onclick=()=>{const nm=b.dataset.kill;guard('procs','Jarayonni tugatish',()=>{const st=NET?(net.procs[cur.n]||{list:[]}):procs[cur.n],x=st.list.find(y=>y.name===nm);st.list=st.list.filter(y=>y.name!==nm);if(NET&&x&&x.pid)netSend(cur.n,'process.kill',{pids:[x.pid]});
         addLog('info',`Jarayon tugatildi PC ${cur.n}: ${nm}${x?` (${x.exe})`:''} — ${me().name}`);save();draw();if(ui.view==='zal')renderGrid()})});
-    };draw();iv=setInterval(draw,2000)}});
+    };colResize($('table.pt',ov));draw();iv=setInterval(draw,2000)}});
 }
+/* Ustun kengligini sichqoncha bilan oʻzgartirish; ikki marta bosish — asl holiga */
+function colResize(tb){const ths=[...tb.tHead.rows[0].cells],n=ths.length-1;/* oxirgi ustun (Amallar) qolgan joyni oladi */
+  const apply=w=>{if(!w||w.length!==n){tb.classList.remove('rsz');tb.style.minWidth='';ths.forEach(th=>th.style.width='');return}
+    tb.classList.add('rsz');w.forEach((x,i)=>ths[i].style.width=x+'px');tb.style.minWidth=w.reduce((a,b)=>a+b,0)+240+'px'};
+  apply(ui.procCols);
+  ths.slice(0,-1).forEach((th,i)=>{const h=document.createElement('span');h.className='cr';h.title='Sudrang: ustun kengligi · 2 marta bosing: asl holiga';th.appendChild(h);
+    h.addEventListener('dblclick',e=>{e.stopPropagation();ui.procCols=null;apply(null);saveUI()});
+    h.addEventListener('pointerdown',e=>{e.preventDefault();h.setPointerCapture(e.pointerId);h.classList.add('on');
+      const w=ui.procCols&&ui.procCols.length===n?ui.procCols.slice():ths.slice(0,n).map(t=>Math.round(t.getBoundingClientRect().width)),x0=e.clientX,w0=w[i];
+      const mv=ev=>{w[i]=Math.max(60,Math.round(w0+ev.clientX-x0));apply(w)},
+        up=()=>{h.classList.remove('on');h.removeEventListener('pointermove',mv);h.removeEventListener('pointerup',up);h.removeEventListener('pointercancel',up);ui.procCols=w;saveUI()};
+      h.addEventListener('pointermove',mv);h.addEventListener('pointerup',up);h.addEventListener('pointercancel',up)})})}
 
 /* ---------- Bir nechta kompyuter: vaqt qoʻshish (Enter) va oʻchirish (Delete) ---------- */
 function bulkTimeModal(sel){
