@@ -12,7 +12,7 @@ namespace Dust2Agent.Shell;
 /// Nimalar to'siladi: Win, Alt+Tab, Alt+Esc, Alt+F4, Ctrl+Esc, kontekst tugmasi
 /// va qulf oynasidan tashqaridagi sichqoncha bosishlari. Oddiy yozuv — login va
 /// parol kiritish — to'silmaydi. Administratorning favqulodda kombinatsiyasi
-/// (Ctrl+Alt+P) ham o'tadi.
+/// (Ctrl+Alt+K) ham o'tadi.
 ///
 /// Xavfsizlik: ilgaklar jarayonga bog'langan — qobiq yiqilsa yoki yopilsa,
 /// Windows ularni o'zi olib tashlaydi, ya'ni kiritish bloklangan holda qolib
@@ -45,7 +45,7 @@ public sealed class InputBlocker : IDisposable
     public bool Active { get; private set; }
 
     /// <summary>Favqulodda kombinatsiya — har doim o'tkaziladi.</summary>
-    public string UnlockCombo { get; set; } = "Ctrl+Alt+P";
+    public string UnlockCombo { get; set; } = AgentConfig.DefaultUnlockCombo;
 
     public void SetActive(bool on)
     {

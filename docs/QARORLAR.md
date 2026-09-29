@@ -103,7 +103,7 @@ ishlatiladi. Parol o'rnatilmagan bo'lsa, ikkala amal ham tasdiqlash bilan ochila
 Qulf ekrani ochiq bo'lganda klaviatura va sichqoncha past darajali ilgaklar bilan
 to'siladi (WH_KEYBOARD_LL / WH_MOUSE_LL): Win, Alt+Tab, Alt+Esc, Alt+F4, Ctrl+Esc,
 kontekst tugmasi va qulf oynasidan tashqaridagi bosishlar. Oddiy yozuv (login va
-parol) va favqulodda kombinatsiya (Ctrl+Alt+P) hamisha o'tadi.
+parol) va favqulodda kombinatsiya (Ctrl+Alt+K) hamisha o'tadi.
 
 Xavfsizlik: ilgaklar jarayonga bog'langan — qobiq yiqilsa yoki yopilsa Windows
 ularni o'zi olib tashlaydi, ya'ni kompyuter "kiritish bloklangan" holda qolib
@@ -282,7 +282,7 @@ tekshirib turadi. Bu **zaxira** yo'l — admin ulangan bo'lsa buyruq baribir
 undan keladi; ikkalasi ishlasa ham kompyuter bir marta o'chadi.
 
 O'chirish bekor bo'ladi: yangi vaqt ochilsa (sozlamada ham "yangi vaqt
-ochilmasa" deb yozilgan) yoki klient dasturi Ctrl+Alt+P bilan to'xtatilgan
+ochilmasa" deb yozilgan) yoki klient dasturi Ctrl+Alt+K bilan to'xtatilgan
 bo'lsa. Sozlamadagi qiymat 1–120 daqiqa oralig'iga tushiriladi.
 
 ## 18. Ulanish sozlamalari faqat kombinatsiya orqali (2026-09-23)
@@ -300,7 +300,7 @@ Bu ikki jihatdan noto'g'ri edi:
 
 Endi tugma **faqat juftlanmagan** kompyuterda ko'rinadi
 (`ShellScreen.ShowSetupButton`). Juftlangandan keyin bu oynaga yagona yo'l —
-maxfiy kombinatsiya (standarti `Ctrl+Alt+P`, adminda o'zgartiriladi).
+maxfiy kombinatsiya (standarti `Ctrl+Alt+K`, adminda o'zgartiriladi).
 
 Juftlanmagan kompyuterda tugma kerak bo'lib qoladi: ulanish kodi
 kiritilayotganda ekran `locked` bo'ladi va orqaga qaytish yo'li shu.

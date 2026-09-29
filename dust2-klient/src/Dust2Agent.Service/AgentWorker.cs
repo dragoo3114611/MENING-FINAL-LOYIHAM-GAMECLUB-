@@ -62,7 +62,11 @@ public sealed class AgentWorker : BackgroundService
         _sessions.Restore();
 
         _admin.Received += OnAdminMessage;
-        _admin.OnlineChanged += _ => PushState();
+        _admin.OnlineChanged += online =>
+        {
+            if (online) FlushPendingAlerts();
+            PushState();
+        };
         _sessions.Changed += PushState;
         _sessions.Expired += OnSessionExpired;
         _sessions.Warning += OnWarning;
@@ -411,7 +415,7 @@ public sealed class AgentWorker : BackgroundService
         if (a is null) return;
         var changed = _config.ServicePassHash != a.ServicePassHash || _config.UnlockCombo != a.UnlockCombo;
         _config.ServicePassHash = a.ServicePassHash;
-        _config.UnlockCombo = string.IsNullOrWhiteSpace(a.UnlockCombo) ? "Ctrl+Alt+P" : a.UnlockCombo;
+        _config.UnlockCombo = string.IsNullOrWhiteSpace(a.UnlockCombo) ? AgentConfig.DefaultUnlockCombo : a.UnlockCombo;
         if (changed) _config.Save();
     }
 
@@ -564,8 +568,9 @@ public sealed class AgentWorker : BackgroundService
                     _config.Paused = true;
                     _config.Save();
                     _admin.Paused = true;
-                    _admin.Drop();
-                    _log.Info("Klient dasturi to'xtatildi (qulf ekrani o'chirildi)");
+                    _log.Warn("Klient dasturi to'xtatildi (qulf ekrani o'chirildi)");
+                    // Avval adminga qizil ogohlantirish, keyin aloqani uzamiz
+                    _ = AlertThenAsync(AlertKinds.Paused, _admin.Drop);
                 }
                 PushState();
                 return;
@@ -578,6 +583,7 @@ public sealed class AgentWorker : BackgroundService
                     _admin.Paused = false;
                     _admin.Wake();
                     _log.Info("Klient dasturi qayta ishga tushirildi");
+                    Alert(AlertKinds.Resumed);
                 }
                 PushState();
                 return;
@@ -642,13 +648,91 @@ public sealed class AgentWorker : BackgroundService
                 var ok = string.IsNullOrEmpty(_config.ServicePassHash) ||
                          PasswordHash.Verify(_config.ServicePassHash, r?.Password ?? "");
                 _pipe.Send(PipeTypes.Unlock, new { ok });
-                if (ok) _log.Warn("Qulf xizmat paroli bilan qo'lda ochildi");
+                if (ok)
+                {
+                    _log.Warn("Qulf xizmat paroli bilan qo'lda ochildi");
+                    Alert(AlertKinds.ManualUnlock);
+                }
                 return;
             }
 
             default:
                 return;
         }
+    }
+
+    /* ------------------------ xavfli holatlar (client.alert) ------------------------ */
+
+    private readonly object _alertLock = new();
+
+    private static long NowMs() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+    /// <summary>Adminga darhol yuboradi; aloqa yo'q bo'lsa diskda saqlab, ulanganda yuboradi.</summary>
+    private void Alert(string kind)
+    {
+        var at = NowMs();
+        if (_admin.IsOnline) _admin.Send("client.alert", new { kind, at });
+        else KeepAlert(kind, at);
+    }
+
+    /// <summary>Yuborilishini kutib, keyin amalni bajaradi (masalan aloqani uzish).</summary>
+    private async Task AlertThenAsync(string kind, Action? then)
+    {
+        var at = NowMs();
+        try
+        {
+            if (!await _admin.SendNowOrFailAsync("client.alert", new { kind, at }, TimeSpan.FromSeconds(2))
+                    .ConfigureAwait(false))
+                KeepAlert(kind, at);
+        }
+        catch (Exception ex)
+        {
+            _log.Error("Ogohlantirishni yuborib bo'lmadi", ex);
+            KeepAlert(kind, at);
+        }
+        then?.Invoke();
+    }
+
+    private void KeepAlert(string kind, long at)
+    {
+        lock (_alertLock)
+        {
+            // Nusxa ustida o'zgartiramiz: boshqa oqim shu payt Save() qilayotgan bo'lishi mumkin
+            var list = _config.PendingAlerts.ToList();
+            PendingAlert.Add(list, kind, at);
+            _config.PendingAlerts = list;
+            _config.Save();
+        }
+    }
+
+    private void FlushPendingAlerts()
+    {
+        List<PendingAlert> list;
+        lock (_alertLock)
+        {
+            if (_config.PendingAlerts.Count == 0) return;
+            list = _config.PendingAlerts;
+            _config.PendingAlerts = new List<PendingAlert>();
+            _config.Save();
+        }
+        foreach (var a in list) _admin.Send("client.alert", new { kind = a.Kind, at = a.At });
+        _log.Info($"Saqlangan ogohlantirishlar adminga yuborildi: {list.Count} ta");
+    }
+
+    /// <summary>
+    /// Xizmat to'xtatilsa (services.msc, sc stop, o'chirib tashlash) adminga qizil
+    /// ogohlantirish. Windows o'chayotgan yoki o'chirishni agent o'zi boshlagan
+    /// bo'lsa — bu oddiy holat, xabar berilmaydi.
+    /// </summary>
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        var expected = SystemShutdown.InProgress || (OperatingSystem.IsWindows() && PowerControl.Requested);
+        if (!expected)
+        {
+            _log.Warn("Klient xizmati to'xtatilmoqda");
+            await AlertThenAsync(AlertKinds.ServiceStopped, null).ConfigureAwait(false);
+        }
+        await base.StopAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /* --------------------------------- holat --------------------------------- */
