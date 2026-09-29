@@ -705,7 +705,7 @@ function applies(t,date=new Date()){
   return true;
 }
 function led(kind,amount,method,extra){if(amount>0)S.ledger.push(Object.assign({id:uid(),t:Date.now(),kind,amount,method},extra||{}))}
-function addLog(type,text,t,x){const e={t:t||Date.now(),type,text};if(x){if(x.in>0)e.in=x.in;if(x.out>0)e.out=x.out;if(x.m)e.m=x.m}S.log.push(e);if(S.log.length>3000)S.log.splice(0,S.log.length-3000);if(ui.view==='zal')renderLog('append')}
+function addLog(type,text,t,x){const e={t:t||Date.now(),type,text};if(type==='warn'&&!t&&!/^Smena yopildi/.test(text)&&typeof tgNotify==='function')tgNotify('warn',text);if(x){if(x.in>0)e.in=x.in;if(x.out>0)e.out=x.out;if(x.m)e.m=x.m}S.log.push(e);if(S.log.length>3000)S.log.splice(0,S.log.length-3000);if(ui.view==='zal')renderLog('append')}
 
 function startSession(n,o){
   const pc=pcBy(n),t=tariff(o.tariffId),now=Date.now();
@@ -861,6 +861,7 @@ function migrate(){
   st.beh=Object.assign({autoWake:true,timer:false,end:'lock',offMin:5,block:true},st.beh||{});
   st.srv=Object.assign({ip:'192.168.1.50',port:7777,code:'888518',svcPass:'0000',sync:true,lastSync:null},st.srv||{});
   st.debtDisc=Object.assign({on:true,pct:25},st.debtDisc||{});
+  st.tg=Object.assign({on:false,token:'',chat:''},st.tg||{});st.tg.ev=Object.assign({shift:true,open:false,alert:true,susp:true,warn:false},st.tg.ev||{});
   if(!st.ui.family)st.ui.family='Onest';
   if(!S.lockByGroup)S.lockByGroup={};
   if(!S.stockLog)S.stockLog=[];
@@ -1739,7 +1740,7 @@ function vShift(m){
     <div class="box"><h2>Oldingi smenalar</h2><div class="tbl"><table class="t"><thead><tr><th>Xodim</th><th>Ochildi</th><th>Yopildi</th><th class="r">Tushum</th><th class="r">Naqd kutilgan</th><th class="r">Sanalgan</th><th class="r">Farq</th><th class="r">Topshirildi</th></tr></thead><tbody>
     ${hist.map(s=>{const st=shiftStats(s.openAt,s.closeAt),df=s.counted-s.expected;return `<tr><td>${esc(uname(s.user))}</td><td>${dshort(s.openAt)} ${hm(s.openAt)}</td><td>${dshort(s.closeAt)} ${hm(s.closeAt)}</td><td class="r">${som(st.total)}</td><td class="r">${som(s.expected)}</td><td class="r">${som(s.counted)}</td><td class="r">${df?`<span class="pill ${df<0?'p-off':'p-pause'}">${df>0?'+':''}${num(df)}</span>`:'<span class="pill p-free">0</span>'}</td><td class="r">${s.handed?som(s.handed):'—'}</td></tr>`}).join('')||'<tr><td colspan="8" class="empty">Hali yopilgan smena yoʻq</td></tr>'}</tbody></table></div></div></div>`;
   if($('#sh-open'))$('#sh-open').onclick=()=>modal({title:'Smenani ochish',body:`<div class="frm"><label>Xodim<input value="${esc(me().name)}" disabled></label><label>Kassadagi naqd pul (soʻm)<input id="so-c" type="number" min="0" step="1000" value="500000"></label></div>`,
-    actions:[{label:'Bekor qilish'},{label:'Ochish',cls:'pri',run:()=>{S.shifts.push({id:uid(),user:S.user,openAt:Date.now(),openCash:vn('so-c'),closeAt:null});addLog('info',`Smena ochildi: ${me().name}, kassa ${som(vn('so-c'))}`);commit();toast('Smena ochildi')}}]});
+    actions:[{label:'Bekor qilish'},{label:'Ochish',cls:'pri',run:()=>{S.shifts.push({id:uid(),user:S.user,openAt:Date.now(),openCash:vn('so-c'),closeAt:null});addLog('info',`Smena ochildi: ${me().name}, kassa ${som(vn('so-c'))}`);tgNotify('open',`Smena ochildi: ${me().name}, kassa ${som(vn('so-c'))}`);commit();toast('Smena ochildi')}}]});
   if($('#sh-close'))$('#sh-close').onclick=()=>{const st=shiftStats(sh.openAt,Date.now()+1),exp=sh.openCash+st.m.cash-st.outCash;
     modal({title:'Smenani yopish',body:`<div class="frm"><div class="sumbox"><div class="ln"><span>Boshlangʻich kassa</span><span>${som(sh.openCash)}</span></div>${can('kassa')?`<div class="ln"><span>Naqd tushum</span><span>${som(st.m.cash)}</span></div>${st.outCash?`<div class="ln"><span>Kassadan chiqim</span><span>−${som(st.outCash)}</span></div>`:''}<div class="ln big"><span>Kutilgan naqd</span><span>${som(exp)}</span></div>`:'<div class="ln muted"><span>Kutilgan summa yashirin — kassani sanab kiriting</span></div>'}</div>
       <label>Kassada sanalgan naqd pul<input id="sc-c" type="number" min="0" step="1000" value="${can('kassa')?exp:''}"></label><div class="sumbox" id="sc-d"></div>
@@ -1753,7 +1754,9 @@ function vShift(m){
         const counted=vn('sc-c'),left=v('sc-l')===''?counted:Math.min(vn('sc-l'),counted),nu=v('sc-u'),now=Date.now();
         sh.closeAt=now;sh.counted=counted;sh.expected=exp;sh.handed=counted-left;
         addLog(counted===exp?'info':'warn',`Smena yopildi: ${uname(sh.user)} · tushum ${som(st.total)} · farq ${num(counted-exp)}${counted-left?` · topshirildi ${som(counted-left)}`:''}`);
+        tgNotify('shift',tgShiftText(sh));
         S.shifts.push({id:uid(),user:nu,openAt:now,openCash:left,closeAt:null,auto:true});
+        tgNotify('open',`Yangi smena ochildi: ${uname(nu)}, kassa ${som(left)}`);
         addLog('info',`Yangi smena avtomatik ochildi: ${uname(nu)}, kassa ${som(left)}`);
         if(nu!==S.user&&S.users.find(u=>u.login===nu&&u.pass)){commit();toast('Smena yopildi va yangisi ochildi');loginModal(true);return}
         if(nu!==S.user){S.user=nu;ui.elev=0}
@@ -2093,7 +2096,7 @@ function vTariffs(m){
 }
 
 /* =================== SOZLAMALAR =================== */
-const SSEC=[['pcs','Kompyuterlar'],['lock','Qulf ekrani'],['klub','Klub'],['users','Foydalanuvchilar va huquqlar',1],['ui','Server interfeysi'],['data','Backup',1],['clean','Maʼlumotlarni tozalash',1],['lic','Litsenziya']];
+const SSEC=[['pcs','Kompyuterlar'],['lock','Qulf ekrani'],['klub','Klub'],['users','Foydalanuvchilar va huquqlar',1],['ui','Server interfeysi'],['data','Backup',1],['clean','Maʼlumotlarni tozalash',1],['tg','Telegram bot',1],['lic','Litsenziya']];
 function vSettings(m){
   if(!can('sozlamalar'))return vZal(m);
   const SS=SSEC.filter(x=>x[0]!=='lic'||(lic&&!lic.off)); // litsenziya oʻchiq boʻlsa boʻlim koʻrinmaydi
@@ -2104,7 +2107,7 @@ function vSettings(m){
     <nav class="set-nav box" aria-label="Sozlamalar boʻlimlari">${SS.map(([k,l,a])=>`<button type="button" data-ss="${k}" class="${ui.setSec===k?'on':''}"${a&&!adminish()?' data-lock="1" title="Administrator paroli soʻraladi"':''}>${l}</button>`).join('')}</nav>
     <div class="set-body" id="setb"></div></div></div>`;
   $$('[data-ss]',m).forEach(b=>b.onclick=()=>{const g=()=>{ui.setSec=b.dataset.ss;vSettings(m)};b.dataset.lock?guard(null,'Sozlamalar › '+b.textContent,g):g()});
-  ({pcs:setPcs,lock:setLock,klub:setKlub,users:setUsers,disc:setDisc,tarif:setTarif,ui:setUi,data:setData,clean:setClean,lic:setLic}[ui.setSec])($('#setb'));
+  ({pcs:setPcs,lock:setLock,klub:setKlub,users:setUsers,disc:setDisc,tarif:setTarif,ui:setUi,data:setData,clean:setClean,tg:setTg,lic:setLic}[ui.setSec])($('#setb'));
 }
 const sw=(id,on,label)=>`<span class="sw"><input type="checkbox" id="${id}"${on?' checked':''}${label?` aria-label="${esc(label)}"`:''}></span>`;
 
@@ -2716,6 +2719,81 @@ function loginModal(start){
    (ws://<ip>:<port>/agent). Klient agentlar shared/protocol.md dagi protokol bilan
    ulanadi: konvert {v,type,id,ts,payload}. Brauzerda kpNet yoʻq — ichki simulyatsiya. */
 const NET=window.kpNet||null;
+/* ---- Telegram bot: egasiga qizil ogohlantirishlar, shubhali holatlar va smena hisoboti ---- */
+// Boshqa joylardan chaqiriladi: tgNotify('alert'|'susp'|'shift'|'open'|'warn', matn)
+const TGEV=[['shift','Smena yopilganda kassa hisoboti','Kassa harakati (naqd), tushum, sanalgan pul va farq'],['open','Smena ochilganda','Kim, qachon, kassada qancha bilan ochdi'],
+  ['alert','Qizil ogohlantirishlar','Klient dasturi toʻxtatilsa yoki qulf parol bilan ochilsa'],['susp','Shubhali holatlar','Tez yopilib pul qaytarilgan seanslar, qarz tahrirlari, smena kamomadi'],
+  ['warn','Jurnaldagi boshqa ogohlantirishlar','Sariq yozuvlar: parol olib tashlash, bloklash, oʻchirish va h.k.']];
+function tgCall(token,method,params){
+  if(window.kpTg)return window.kpTg.call(token,method,params);
+  // brauzerdagi prototip: Telegram API CORS ga ruxsat beradi
+  return fetch(`https://api.telegram.org/bot${token}/${method}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(params||{})})
+    .then(r=>r.json().then(j=>j&&j.ok?{ok:true,result:j.result}:{ok:false,net:false,err:(j&&j.description)||'HTTP '+r.status}),()=>({ok:false,net:true,err:'Internet yoʻq yoki Telegram javob bermadi'}));
+}
+const tgReady=()=>{const g=S.settings.tg;return !!(g&&g.on&&g.token&&g.chat)};
+function tgNotify(kind,text){
+  const g=S.settings.tg;if(!tgReady()||!g.ev[kind])return;
+  const head={alert:'🔴 ',susp:'⚠️ ',warn:'🟡 ',shift:'💵 ',open:'🟢 '}[kind]||'';
+  S.tgQ=S.tgQ||[];S.tgQ.push({t:Date.now(),text:head+text});if(S.tgQ.length>50)S.tgQ.splice(0,S.tgQ.length-50);
+  save();tgFlush();
+}
+// navbat: internet uzilsa xabarlar saqlanib turadi va har daqiqada qayta yuboriladi
+let tgBusy=false;
+async function tgFlush(){
+  if(tgBusy||!tgReady()||!S.tgQ||!S.tgQ.length)return;tgBusy=true;const g=S.settings.tg;
+  try{while(S.tgQ.length){const x=S.tgQ[0],late=Date.now()-x.t>2*MIN;
+      const r=await tgCall(g.token,'sendMessage',{chat_id:g.chat,text:`${S.settings.name}\n${x.text}${late?`\n⏱ ${dstr(x.t)}, ${hm(x.t)}`:''}`.slice(0,4000),disable_web_page_preview:true});
+      if(!r.ok&&r.net){g.lastErr=r.err;break}
+      S.tgQ.shift();if(r.ok){g.lastOk=Date.now();g.lastErr=''}else g.lastErr=r.err}
+  }finally{tgBusy=false;save()}
+}
+setInterval(tgFlush,60000);
+function tgShiftText(sh){
+  const F=sh.openAt,T=sh.closeAt+1,L=S.ledger.filter(e=>e.t>=F&&e.t<T),cashK=k=>L.filter(e=>e.method==='cash'&&e.kind===k).reduce((a,e)=>a+e.amount,0);
+  const st=shiftStats(F,T),df=sh.counted-sh.expected,un=l=>(S.users.find(u=>u.login===l)||{name:l}).name;
+  return [`Smena yopildi: ${un(sh.user)}`,`${dshort(F)} ${hm(F)} — ${dshort(sh.closeAt)} ${hm(sh.closeAt)}`,'',
+    'Kassa harakati (naqd)',`Smena boshidagi kassa: ${som(sh.openCash)}`,`+ Kompyuter vaqti: ${som(cashK('pc'))}`,`+ Bar: ${som(cashK('bar'))}`,
+    `+ Akkaunt toʻldirish: ${som(cashK('topup'))}`,`+ Qarz toʻlovlari: ${som(cashK('debtpay'))}`,`− Chiqimlar: ${som(st.outCash)}`,`= Kutilgan naqd: ${som(sh.expected)}`,
+    `Sanalgan: ${som(sh.counted)}`,`Farq: ${df>0?'+':''}${som(df)}${df<0?' (kamomad)':''}`,sh.handed?`Topshirildi: ${som(sh.handed)}`:null,'',
+    `Jami tushum: ${som(st.total)}`,`Naqd ${num(st.m.cash)} · karta ${num(st.m.card)} · Click ${num(st.m.click)} · Payme ${num(st.m.payme)}`,
+    st.debt?`Qarzga yozildi: ${som(st.debt)}`:null,`Seanslar: ${st.sessions}`].filter(x=>x!=null).join('\n');
+}
+
+function setTg(b){
+  const g=S.settings.tg,opt=(k,t,d)=>`<label class="opt"><span><b>${t}</b><small>${d}</small></span>${sw('tge-'+k,g.ev[k],t)}</label>`;
+  const stx=()=>!g.token||!g.chat?'Hali ulanmagan':g.lastErr?`Oxirgi xato: ${g.lastErr}`:g.lastOk?`Oxirgi xabar yuborildi: ${dstr(g.lastOk)}, ${hm(g.lastOk)}`:'Sozlangan, hali xabar yuborilmagan';
+  b.innerHTML=`<div class="box"><h2>Telegram bot</h2><div class="boxb"><div style="max-width:560px;display:flex;flex-direction:column;gap:12px;margin-bottom:12px">
+    <p class="note" style="margin:0">Klub Pult sizga Telegram orqali qizil ogohlantirishlar, shubhali holatlar va smena yopilganda kassa hisobotini yuboradi. Admin kompyuterda internet boʻlishi kerak; internet uzilsa, xabarlar navbatda turadi va keyin yuboriladi.</p>
+    <label class="opt"><span><b>Xabarlar yuborilsin</b><small>Oʻchirilsa, bot hech narsa yubormaydi</small></span>${sw('tg-on',g.on,'Xabarlar yuborilsin')}</label></div>
+    <div class="frm" style="max-width:560px"><label>Bot tokeni (BotFather beradi)<input id="tg-t" type="password" autocomplete="off" spellcheck="false" placeholder="123456789:AAE..." value="${esc(g.token)}"></label>
+    <div class="row2"><label>Chat ID<input id="tg-c" autocomplete="off" placeholder="masalan 123456789" value="${esc(g.chat)}"></label>
+      <div style="align-self:end"><button class="btn" type="button" id="tg-f">Chat ID ni topish</button></div></div>
+    <div class="err" id="tg-e"></div></div></div>
+    <div class="btnrow"><button class="btn pri" type="button" id="tg-s">Saqlash</button><button class="btn" type="button" id="tg-x">Sinov xabari yuborish</button><span class="note" id="tg-st">${esc(stx())}${S.tgQ&&S.tgQ.length?` · navbatda ${S.tgQ.length} ta xabar`:''}</span></div></div>
+    <div class="box"><h2>Nimalar yuborilsin</h2><div class="boxb"><div class="beh"><div class="beh-col">${TGEV.map(x=>opt(...x)).join('')}</div></div></div></div>
+    <div class="box"><h2>Botni qanday ulash</h2><div class="boxb"><ol class="note" style="margin:0;padding-left:18px;line-height:1.7">
+      <li>Telegramda <b>@BotFather</b> ni oching, <span class="mono">/newbot</span> yozing, botga nom va username bering.</li>
+      <li>BotFather bergan tokenni yuqoridagi «Bot tokeni» maydoniga qoʻying.</li>
+      <li>Oʻz botingizni oching va <b>Start</b> bosing (yoki botni guruhga qoʻshib, guruhga istalgan xabar yozing).</li>
+      <li>«Chat ID ni topish» ni bosing, keyin «Saqlash» va «Sinov xabari yuborish».</li></ol>
+      <p class="note" style="margin:10px 0 0">Token faqat shu kompyuterdagi bazada saqlanadi. Uni hech kimga bermang: kimda token boʻlsa, bot nomidan yoza oladi.</p></div></div>`;
+  const e=$('#tg-e'),rd=()=>({token:v('tg-t').trim(),chat:v('tg-c').trim()});
+  const keep=()=>{const r=rd();g.token=r.token;g.chat=r.chat;g.on=$('#tg-on').checked;TGEV.forEach(([k])=>g.ev[k]=$('#tge-'+k).checked)};
+  $('#tg-on').onchange=()=>{keep();save();toast(g.on?'Telegram xabarlari yoqildi':'Telegram xabarlari oʻchirildi')};
+  TGEV.forEach(([k])=>$('#tge-'+k).onchange=()=>{keep();save()});
+  $('#tg-s').onclick=()=>{const r=rd();if(r.token&&!/^\d+:[\w-]{20,}$/.test(r.token))return e.textContent='Token koʻrinishi notoʻgʻri: 123456789:AAE... boʻlishi kerak';
+    const was=g.token;keep();if(was!==g.token)g.lastErr='';addLog('info',`Telegram bot sozlamalari saqlandi — ${me().name}`);save();setTg(b);toast('Saqlandi');tgFlush()};
+  $('#tg-f').onclick=async()=>{const r=rd();e.textContent='';if(!r.token)return e.textContent='Avval bot tokenini kiriting';
+    const me_=await tgCall(r.token,'getMe');if(!me_.ok)return e.textContent=`Token ishlamadi: ${me_.err}`;
+    const u=await tgCall(r.token,'getUpdates',{limit:100});if(!u.ok)return e.textContent=u.err;
+    const ch=u.result.map(x=>(x.message||x.channel_post||x.my_chat_member||{}).chat).filter(Boolean).pop();
+    if(!ch)return e.textContent=`@${me_.result.username} botiga Telegramda Start bosing yoki xabar yozing, keyin qayta urinib koʻring`;
+    $('#tg-c').value=ch.id;toast(`Topildi: ${ch.title||[ch.first_name,ch.last_name].filter(Boolean).join(' ')||ch.id}`)};
+  $('#tg-x').onclick=async()=>{const r=rd();e.textContent='';if(!r.token||!r.chat)return e.textContent='Token va Chat ID ni kiriting';
+    const x=await tgCall(r.token,'sendMessage',{chat_id:r.chat,text:`${S.settings.name}\n✅ Sinov xabari: Klub Pult botga ulandi (${me().name}, ${hm(Date.now())})`});
+    if(!x.ok)return e.textContent=`Yuborilmadi: ${x.err}`;g.lastOk=Date.now();g.lastErr='';save();$('#tg-st').textContent=stx();toast('Sinov xabari yuborildi — Telegramni tekshiring')};
+}
+
 /* ---- Litsenziya: kalitsiz 5 kun va 5 ta PC; kalit muallif tomonidan shu kompyuter uchun beriladi ---- */
 const LIC=window.kpLic||null;
 let lic=LIC?LIC.status():null; // brauzerdagi prototipda cheklov yoʻq (u yerda server ham yoʻq)

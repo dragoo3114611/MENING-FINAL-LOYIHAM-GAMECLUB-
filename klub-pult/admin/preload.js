@@ -35,3 +35,6 @@ contextBridge.exposeInMainWorld('kpLic', {
   activate: key => ipcRenderer.invoke('lic:activate', key),
   on: fn => ipcRenderer.on('lic:changed', (e, st) => fn(st))
 });
+
+// Telegram bot API (faqat getMe, getUpdates, sendMessage)
+contextBridge.exposeInMainWorld('kpTg', { call: (token, method, params) => ipcRenderer.invoke('tg:call', token, method, params) });

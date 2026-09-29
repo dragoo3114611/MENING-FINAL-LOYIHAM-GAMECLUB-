@@ -65,6 +65,22 @@ ipcMain.on('pw:ok', e => { e.returnValue = !!argon2; });
 ipcMain.handle('pw:hash', (e, pw) => argon2.hash(String(pw)));
 ipcMain.handle('pw:verify', async (e, hash, pw) => { try { return await argon2.verify(String(hash), String(pw)); } catch { return false; } });
 
+// ---- Telegram bot: xabarlar main jarayondan yuboriladi (CORS va sahifa cheklovlari yoʻq) ----
+// Token faqat admin kompyuterdagi bazada saqlanadi, repoga tushmaydi.
+const TG_METHODS = new Set(['getMe', 'getUpdates', 'sendMessage']);
+ipcMain.handle('tg:call', async (e, token, method, params) => {
+  if (!TG_METHODS.has(method) || !/^\d+:[\w-]{20,}$/.test(String(token || ''))) return { ok: false, net: false, err: 'Token notoʻgʻri' };
+  try {
+    const r = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params || {}), signal: AbortSignal.timeout(15000)
+    });
+    const j = await r.json().catch(() => null);
+    if (j && j.ok) return { ok: true, result: j.result };
+    return { ok: false, net: false, code: r.status, err: (j && j.description) || `HTTP ${r.status}` };
+  } catch (err) { return { ok: false, net: true, err: 'Internet yoʻq yoki Telegram javob bermadi' }; }
+});
+
 // ---- SQLite baza (sinxron oʻqish preload uchun, yozish debounce) ----
 let dbReady = false;
 function ensureDb() {
