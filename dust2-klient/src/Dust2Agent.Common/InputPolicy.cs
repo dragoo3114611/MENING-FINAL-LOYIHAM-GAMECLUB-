@@ -12,7 +12,7 @@ public readonly record struct KeyEvent(int VirtualKey, bool Alt, bool Ctrl, bool
 ///
 /// Qoida: oddiy yozuv (login/parol kiritish) hech qachon to'silmaydi, faqat tizim
 /// kombinatsiyalari — Win, Alt+Tab, Ctrl+Esc va hokazo. Favqulodda kombinatsiya
-/// (masalan Ctrl+Alt+P) har doim o'tkaziladi, aks holda administrator qulfni
+/// (masalan Ctrl+Alt+K) har doim o'tkaziladi, aks holda administrator qulfni
 /// ocha olmay qoladi.
 ///
 /// Ctrl+Alt+Del ni bu yo'l bilan to'sib bo'lmaydi — u uchun Task Manager
@@ -49,7 +49,7 @@ public static class InputPolicy
         return false;
     }
 
-    /// <summary>"Ctrl+Alt+P" ko'rinishidagi kombinatsiyaga mos keladimi.</summary>
+    /// <summary>"Ctrl+Alt+K" ko'rinishidagi kombinatsiyaga mos keladimi.</summary>
     public static bool Matches(KeyEvent e, string combo)
     {
         var parsed = Parse(combo);

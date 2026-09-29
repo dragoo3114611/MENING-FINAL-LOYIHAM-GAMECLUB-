@@ -122,7 +122,7 @@ Klient bunda ulanish oynasini qayta ko'rsatadi.
 | Maydon | Izoh |
 |---|---|
 | `servicePassHash` | qulfni qo'lda ochish va klientdagi ⚙ uchun parol hashi |
-| `unlockCombo` | favqulodda qulfni ochish kombinatsiyasi (standart `Ctrl+Alt+P`) |
+| `unlockCombo` | favqulodda qulfni ochish kombinatsiyasi (standart `Ctrl+Alt+K`). Adminda o'zgartirilsa, ulangan klientlarga darhol `sync` bilan, oflayn klientlarga keyingi `hello.ok` bilan boradi. Faqat `Ctrl+Alt+[Shift+]` + harf, raqam yoki F1–F12 |
 
 Hash formati — `pbkdf2$<takrorlar>$<salt base64>$<hash base64>`, SHA-256.
 Agent uni o'zida saqlaydi va oflayn tekshiradi ([qaror 11](../docs/QARORLAR.md)).
@@ -189,9 +189,9 @@ Admin so'rovni `process.list.result` kelguncha kutadi (8 soniya), javob bo'lmasa
 operatorda "Klient javob bermadi" chiqadi. Oyna ochiq turganda ro'yxat 4 soniyada
 bir yangilanadi; oyna yopilsa yoki dastur kichraytirilsa so'rov yuborilmaydi.
 
-**Klientni vaqtincha to'xtatish.** Klient ekranida Ctrl+Alt+P → "Klient dasturini
+**Klientni vaqtincha to'xtatish.** Klient ekranida Ctrl+Alt+K → "Klient dasturini
 to'xtatish" tanlanganda agent `paused` holatiga o'tadi: qulf ekrani ko'rsatilmaydi,
-admin bilan ulanish uziladi (adminda kompyuter oflayn ko'rinadi) va qobiq qayta
+agent avval `client.alert { kind: "paused" }` yuboradi, keyin admin bilan ulanish uziladi (adminda kompyuter oflayn ko'rinadi va qizil ogohlantirish chiqadi) va qobiq qayta
 ochilmaydi. Holat `agent.json` da saqlanadi. Qobiq yorliq orqali qo'lda ochilganda
 avtomatik `resume` yuboradi va hammasi tiklanadi.
 
@@ -222,6 +222,20 @@ yuboradi ([qaror 4](../docs/QARORLAR.md)).
 | `time.request` | `{}` | admin vaqtini so'rash |
 | `time.synced` | `{ driftMs }` | Windows soati to'g'rilandi |
 | `lock.wallpaper.request` | `{}` | keshda rasm yo'q yoki hash boshqacha |
+| `client.alert` | `{ kind, at }` | xavfli holat — adminda qizil ogohlantirish (pastga qarang) |
+
+`client.alert` turlari (`at` — yuz bergan vaqt, Unix ms):
+
+| `kind` | Qachon |
+|---|---|
+| `paused` | klient dasturi to'xtatildi (Ctrl+Alt+K → "Klient dasturini to'xtatish") |
+| `resumed` | to'xtatilgan klient qayta ishga tushdi — oddiy ma'lumot, qizil emas |
+| `manual_unlock` | qulfni ochish kombinatsiyasi bosilib, xizmat paroli to'g'ri kiritildi (boshqaruv oynasi ochildi) |
+| `service_stopped` | Dust2Agent xizmati to'xtatildi. Windows o'chayotganda yoki o'chirishni agent o'zi boshlaganda yuborilmaydi |
+
+Aloqa yo'q paytdagi ogohlantirishlar `agent.json` da (`pendingAlerts`, eng ko'pi 20 ta)
+saqlanadi va keyingi `hello.ok` dan keyin yuboriladi. `client.unpair` ham adminda qizil
+ogohlantirish bo'ladi.
 
 `auth.login` javobi:
 

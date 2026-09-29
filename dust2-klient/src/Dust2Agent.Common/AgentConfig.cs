@@ -18,10 +18,22 @@ public sealed class AgentConfig
 
     /// <summary>Admindan kelgan sozlamalar — aloqa yo'q bo'lsa ham kerak.</summary>
     [JsonPropertyName("servicePassHash")] public string ServicePassHash { get; set; } = "";
-    [JsonPropertyName("unlockCombo")] public string UnlockCombo { get; set; } = "Ctrl+Alt+P";
+    [JsonPropertyName("unlockCombo")] public string UnlockCombo { get; set; } = DefaultUnlockCombo;
 
     /// <summary>
-    /// Klient dasturi vaqtincha to'xtatilgan (Ctrl+Alt+P → "Dasturni to'xtatish").
+    /// Standart kombinatsiya — Klub Pult admin ham shuni ko'rsatadi va yuboradi.
+    /// Admin boshqasini tanlasa, hello.ok / sync bilan keladi va shu faylga yoziladi.
+    /// </summary>
+    public const string DefaultUnlockCombo = "Ctrl+Alt+K";
+
+    /// <summary>
+    /// Admin bilan aloqa yo'q paytda yuz bergan xavfli holatlar (client.alert).
+    /// Diskda turadi, shuning uchun kompyuter qayta yoqilsa ham ulanganda yetib boradi.
+    /// </summary>
+    [JsonPropertyName("pendingAlerts")] public List<PendingAlert> PendingAlerts { get; set; } = new();
+
+    /// <summary>
+    /// Klient dasturi vaqtincha to'xtatilgan (Ctrl+Alt+K → "Dasturni to'xtatish").
     /// Bunda qulf ekrani ko'rsatilmaydi, admin bilan aloqa uzilgan holda turadi.
     /// Qobiq qo'lda ishga tushirilganda avtomatik tiklanadi.
     /// </summary>

@@ -443,7 +443,9 @@ public partial class LockWindow : Window
             PwError.Text = "Xizmat bilan aloqa yo'q — parolni tekshirib bo'lmaydi.";
             return;
         }
-        var type = _passwordPurpose == "unlock" ? PipeTypes.Unlock : PipeTypes.VerifyPassword;
+        // Kombinatsiya orqali qulfni ochish (boshqaruv oynasi) — xizmat buni adminga
+        // qizil ogohlantirish qilib yuboradi; ⚙ ulanish sozlamalari esa oddiy tekshiruv
+        var type = _passwordPurpose is "unlock" or "actions" ? PipeTypes.Unlock : PipeTypes.VerifyPassword;
         _agent.Send(type, new PasswordRequest { Password = ServicePassBox.Password });
     }
 
@@ -552,7 +554,7 @@ public partial class LockWindow : Window
         ServicePassBox.Focus();
     }
 
-    /// <summary>"Ctrl+Alt+P" ko'rinishidagi kombinatsiyani tekshiradi.</summary>
+    /// <summary>"Ctrl+Alt+K" ko'rinishidagi kombinatsiyani tekshiradi.</summary>
     internal static bool MatchesCombo(KeyEventArgs e, string combo)
     {
         if (string.IsNullOrWhiteSpace(combo)) return false;
@@ -569,6 +571,8 @@ public partial class LockWindow : Window
             !p.Equals("Shift", StringComparison.OrdinalIgnoreCase));
         if (keyName is null) return false;
 
+        // "5" raqam sifatida o'qilsa Key.Cancel (5) bo'lib qoladi — raqam tugmasi D5
+        if (keyName.Length == 1 && char.IsDigit(keyName[0])) keyName = "D" + keyName;
         if (!Enum.TryParse<Key>(keyName, true, out var key)) return false;
 
         var actual = e.Key == Key.System ? e.SystemKey : e.Key;

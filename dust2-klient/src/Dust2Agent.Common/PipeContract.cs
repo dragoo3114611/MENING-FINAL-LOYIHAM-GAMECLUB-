@@ -74,7 +74,7 @@ public sealed class ShellState
     [JsonPropertyName("session")] public SessionPayload? Session { get; set; }
     [JsonPropertyName("lock")] public LockConfigPayload Lock { get; set; } = new();
     [JsonPropertyName("behaviour")] public BehaviourPayload Behaviour { get; set; } = new();
-    [JsonPropertyName("unlockCombo")] public string UnlockCombo { get; set; } = "Ctrl+Alt+P";
+    [JsonPropertyName("unlockCombo")] public string UnlockCombo { get; set; } = AgentConfig.DefaultUnlockCombo;
     [JsonPropertyName("hasServicePassword")] public bool HasServicePassword { get; set; }
 
     /// <summary>Qulf ekranida ko'rsatiladigan to'lanmagan summa.</summary>

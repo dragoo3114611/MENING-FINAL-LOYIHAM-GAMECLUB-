@@ -61,7 +61,7 @@ public class ShellStartupTests
     public void Standart_holat_ulanish_oynasi()
     {
         Assert.Equal("setup", new ShellState().Screen);
-        Assert.Equal("Ctrl+Alt+P", new ShellState().UnlockCombo);
+        Assert.Equal("Ctrl+Alt+K", new ShellState().UnlockCombo);
     }
 
     [Fact]

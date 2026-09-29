@@ -35,7 +35,7 @@ public sealed class AdminConnection : IAsyncDisposable
 
     public AgentConfig Config { get; set; } = new();
 
-    /// <summary>Klient dasturi vaqtincha to'xtatilgan (Ctrl+Alt+P → to'xtatish).</summary>
+    /// <summary>Klient dasturi vaqtincha to'xtatilgan (Ctrl+Alt+K → to'xtatish).</summary>
     public bool Paused { get; set; }
 
     /// <summary>Juftlash uchun kiritilgan kod (bir martalik).</summary>
@@ -259,6 +259,17 @@ public sealed class AdminConnection : IAsyncDisposable
             return;
         }
         _ = SendNowAsync(msg, CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Darhol yuboradi va yozilishini kutadi (keyin ulanish uziladigan hollar uchun).
+    /// Aloqa yo'q bo'lsa hech narsa qilmaydi va false qaytaradi.
+    /// </summary>
+    public async Task<bool> SendNowOrFailAsync(string type, object? payload, TimeSpan timeout)
+    {
+        if (!IsOnline || _ws is null || _ws.State != WebSocketState.Open) return false;
+        var send = SendNowAsync(Envelope.Create(type, payload), CancellationToken.None);
+        return await Task.WhenAny(send, Task.Delay(timeout)).ConfigureAwait(false) == send;
     }
 
     private async Task FlushOutboxAsync(CancellationToken ct)

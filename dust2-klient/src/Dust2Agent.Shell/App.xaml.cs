@@ -184,7 +184,7 @@ public partial class App : Application
         if (_blocker is null || !OperatingSystem.IsWindows()) return;
 
         var block = s.Behaviour.BlockInput && s.Screen == "locked" && !s.Paused;
-        _blocker.UnlockCombo = string.IsNullOrWhiteSpace(s.UnlockCombo) ? "Ctrl+Alt+P" : s.UnlockCombo;
+        _blocker.UnlockCombo = string.IsNullOrWhiteSpace(s.UnlockCombo) ? AgentConfig.DefaultUnlockCombo : s.UnlockCombo;
         if (block == _blocker.Active) return;
 
         _blocker.SetActive(block);
