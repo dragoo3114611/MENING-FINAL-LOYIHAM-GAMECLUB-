@@ -292,6 +292,8 @@ svg.chart .gl{stroke:var(--line2)}
 .btn.dng:disabled{opacity:.45}
 .btn.dngf{background:var(--off);border-color:var(--off);color:#fff}
 .kh table.t tr.tot td{background:var(--panel2);border-top:1px solid var(--line)}
+tr.clk{cursor:pointer}tr.clk:hover td{background:var(--panel2)}
+table.t td.nw{white-space:nowrap}
 .kpis.k7{grid-template-columns:repeat(auto-fit,minmax(165px,1fr))}
 .kpi .v{letter-spacing:-.01em}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -609,8 +611,9 @@ const PERMS=[['kassa','Kassa summasini koʻrish','Smena va hisobotdagi «Kassada
   ['tarifEdit','Tariflarni qoʻshish va oʻzgartirish','','Tariflar'],['prodEdit','Bar mahsulotini qoʻshish va tahrirlash','','Mahsulot'],
   ['prodDelete','Bar mahsulotini oʻchirish','','Mahsulot oʻchirish'],['debtDelete','Qarz yozuvlarini tahrirlash va oʻchirish','','Qarz tahriri'],
   ['clientBal','Mijoz balansini qoʻlda tuzatish','Mijozni tahrirlash oynasida','Balans tuzatish'],['clientDelete','Mijozni oʻchirish','','Mijoz oʻchirish'],
-  ['pcPower','Kompyuterlarni oʻchirish, yoqish, qayta yuklash','','Quvvat'],['procs','Jarayonlarni tugatish va tozalash','','Jarayonlar']];
-const DEF_PERMS={kassa:true,chiqim:true,chegirma:true,hisobot:true,foyda:false,sozlamalar:false,tarifEdit:false,prodEdit:true,prodDelete:false,debtDelete:false,clientBal:false,clientDelete:false,pcPower:true,procs:true};
+  ['pcPower','Kompyuterlarni oʻchirish, yoqish, qayta yuklash','','Quvvat'],['procs','Jarayonlarni tugatish va tozalash','','Jarayonlar'],
+  ['shubhali','Shubhali holatlarni koʻrish','Tez yopilgan seanslar, qarz va balans tahrirlari, smena kamomadi','Shubhali']];
+const DEF_PERMS={kassa:true,chiqim:true,chegirma:true,hisobot:true,foyda:false,sozlamalar:false,tarifEdit:false,prodEdit:true,prodDelete:false,debtDelete:false,clientBal:false,clientDelete:false,pcPower:true,procs:true,shubhali:false};
 const DEF_GAMES=[{id:'gm1',name:'Counter-Strike 2',cat:'Shooter',path:'C:\\Games\\CS2\\cs2.exe',color:'#e8a33d'},{id:'gm2',name:'Dota 2',cat:'MOBA',path:'C:\\Games\\Dota 2\\dota2.exe',color:'#c23c2a'},
   {id:'gm3',name:'PUBG: Battlegrounds',cat:'Battle royale',path:'C:\\Games\\PUBG\\TslGame.exe',color:'#d9a441'},{id:'gm4',name:'Valorant',cat:'Shooter',path:'C:\\Riot Games\\VALORANT\\VALORANT.exe',color:'#ff4655'},
   {id:'gm5',name:'EA SPORTS FC 25',cat:'Sport',path:'C:\\Games\\FC25\\FC25.exe',color:'#1fc27a'},{id:'gm6',name:'GTA V',cat:'Action',path:'C:\\Games\\GTAV\\PlayGTAV.exe',color:'#5aa0e6'},
@@ -749,6 +752,7 @@ function finishSession(n,method,auto,debtTo){
   pc.status=pc.pwrOff?'off':'free';pc.session=null;pc.pwrOff=false;
   const tail=due>0?(m==='debt'?(part?`Hozir toʻlandi ${som(part)} (${METHODS[debtTo.payMethod]}), qarzga yozildi ${som(due-part)}`:`Qarz daftariga yozildi ${som(due)}`)+`${debtTo&&debtTo.name!==who(s)?' → '+debtTo.name:''}`:`Mijozdan olindi ${som(due)} (${METHODS[m]})`):(back?'':'Qoʻshimcha toʻlov yoʻq');
   const ret=back?`${tail?' / ':''}Mijozga qaytarildi ${som(back)} (${METHODS[refund.method]})`:'';
+  if(back>0&&now-s.start<=QUICK_MIN*MIN)addAlert('refund',`PC ${n}: seans ${durTxt(mins)} ichida pul qaytarib yopildi — ${who(s)}, toʻlangan ${som(s.paid)}, qaytarildi ${som(back)} (${METHODS[refund.method]})`,{amount:back,pc:n});
   addLog(due>0||back?'warn':'info',`Seans yakunlandi PC ${n} >> ${dstr(now)} ${hms(now)} / ${s.tname} / ${who(s)} / ${som(pcCost+bt)} / ${durTxt(mins)} / ${tail}${ret}`+(auto?' / avtomatik':''),0,{in:due>0&&m!=='debt'?due:0,out:back,m:due>0&&m!=='debt'?m:back?refund.method:''});
 }
 
@@ -867,6 +871,8 @@ function migrate(){
   S.users.forEach(u=>{if(u.active==null)u.active=true;if(u.role!=='admin'){u.perms=Object.assign({},DEF_PERMS,S.perms||{},u.perms||{})}});
   if([...S.users,...(S.clients||[])].some(u=>u.pass&&!pwIsHash(u.pass)))pwMigrate();
   if(!S.requests)S.requests=[];
+  if(!S.alerts){S.alerts=[];S.shifts.forEach(x=>{if(x.closeAt&&x.counted<x.expected)S.alerts.push(shortAlert(x))})}
+  if(!S.alertSeen)S.alertSeen={};
   if(!S.debtPays){S.debtPays=[];S.debts.forEach(d=>{(d.pays||[]).forEach(x=>S.debtPays.push({id:uid(),key:debtKey(d),clientId:d.clientId,name:d.name,t:x.t,amount:x.amount,disc:x.disc||0,pct:x.disc&&x.amount?Math.round(x.disc/x.amount*100):0,method:x.method}));delete d.pays;delete d.paid})}
   if(st.lock&&st.lock.sPc==null)st.lock.sPc=100;
   S.pcs.forEach(p=>{if(!p.group)p.group=S.groups[0].id;if(p.ip==null)p.ip='192.168.1.'+(200+p.n);if(p.mac==null)p.mac=(p.n>44||p.n===42)?'':macFor(p.n);if(!p.inbox)p.inbox=[];if(p.paired==null)p.paired=!!p.mac});
@@ -893,6 +899,24 @@ function shiftStats(from,to){
   for(const h of S.history)if(h.end>=from&&h.end<to)r.sessions++;
   return r;
 }
+/* Kassa harakati (naqd): smena boshidagi kassa + naqd kirimlar − naqd chiqimlar */
+function cashFlow(from,to,openCash){
+  const c={pc:0,bar:0,topup:0,debtpay:0};for(const e of S.ledger)if(e.t>=from&&e.t<to&&e.method==='cash'&&e.kind in c)c[e.kind]+=e.amount;
+  const out=S.expenses.filter(e=>e.src==='kassa'&&e.method==='cash'&&e.t>=from&&e.t<to),outCash=out.reduce((a,e)=>a+e.amount,0);
+  const rows=[['Smena boshidagi kassa',openCash||0,''],['+ Kompyuter vaqti (naqd)',c.pc,'+'],['+ Bar (naqd)',c.bar,'+'],['+ Akkaunt toʻldirish (naqd)',c.topup,'+'],['+ Qarz toʻlovlari (naqd)',c.debtpay,'+'],['− Chiqimlar (naqd)',-outCash,'-']];
+  return {rows,out,outCash,total:rows.reduce((a,r)=>a+r[1],0)}}
+function cashRows(cf){return cf.rows.map(r=>`<tr><td>${r[0]}</td><td class="r"${r[2]==='+'&&r[1]>0?' style="color:var(--ok)"':r[2]==='-'&&r[1]<0?' style="color:var(--off)"':''}>${r[2]==='-'&&r[1]?'−':''}${num(Math.abs(r[1]))}</td></tr>`).join('')}
+function outList(out){return out.length?`<div class="tbl"><table class="t"><thead><tr><th>Vaqt</th><th>Turi</th><th>Izoh</th><th class="r">Naqd chiqim</th></tr></thead><tbody>${out.slice().sort((a,b)=>b.t-a.t).map(e=>`<tr><td>${dmy(e.t)}</td><td>${esc(e.cat)}</td><td class="muted">${esc(e.note||'')}</td><td class="r">−${num(e.amount)}</td></tr>`).join('')}</tbody></table></div>`:''}
+
+/* =================== Shubhali holatlar =================== */
+// Har biri S.alerts ga yoziladi: {id,t,kind,text,user,amount,pc}. Telegram va boshqa kuzatuvchilar «klub:alert» hodisasini tinglaydi.
+const QUICK_MIN=5;
+const ALERT_KINDS={refund:['Tez yopilgan seans','p-off'],debt:['Qarz tahriri','p-pause'],balance:['Balans tahriri','p-pause'],shortage:['Smena kamomadi','p-off']};
+function shortAlert(x){const u=(S.users.find(y=>y.login===x.user)||{name:x.user}).name,d=x.expected-x.counted;
+  return {id:uid(),t:x.closeAt,kind:'shortage',text:`Smena kamomadi: ${u} — kutilgan ${som(x.expected)}, sanalgan ${som(x.counted)}, kam ${som(d)}`,user:x.user,amount:d,shift:x.id}}
+function addAlert(kind,text,x){const a=Object.assign({id:uid(),t:Date.now(),kind,text,user:S.user},x||{});S.alerts.push(a);if(S.alerts.length>2000)S.alerts.splice(0,S.alerts.length-2000);
+  try{document.dispatchEvent(new CustomEvent('klub:alert',{detail:a}))}catch(e){}return a}
+const alertsNew=()=>{if(!S.alerts||!can('shubhali'))return 0;const s=S.alertSeen[S.user]||0;return S.alerts.filter(a=>a.t>s).length};
 function spentMap(){const m={};for(const h of S.history)if(h.clientId)m[h.clientId]=(m[h.clientId]||0)+h.total;return m}
 function levelOf(sp){const L=levels();let l=L[0];for(const x of L)if(sp>=x.min)l=x;return l}
 
@@ -974,11 +998,11 @@ function popMenu(anchor,items){
 }
 
 /* =================== Navigatsiya =================== */
-const NAV=[['zal','Zal'],['mijozlar','Mijozlar'],['bar','Bar'],['qarz','Qarz daftari'],['smena','Smena'],['hisobot','Hisobot','hisobot'],['foyda','Foyda hisob-kitobi','foyda'],['tariflar','Tariflar']];
+const NAV=[['zal','Zal'],['mijozlar','Mijozlar'],['bar','Bar'],['qarz','Qarz daftari'],['smena','Smena'],['hisobot','Hisobot','hisobot'],['shubhali','Shubhali holatlar','shubhali'],['foyda','Foyda hisob-kitobi','foyda'],['tariflar','Tariflar']];
 function renderNav(){
-  const od=openDebtorCount(),low=S.products.filter(p=>p.stock<=p.min).length;
+  const od=openDebtorCount(),low=S.products.filter(p=>p.stock<=p.min).length,al=alertsNew();
   const btn=([k,l,perm])=>{const lock=perm&&!can(perm);
-    const badge=k==='qarz'&&od?`<span class="badge">${od}</span>`:k==='bar'&&low?`<span class="badge red" title="Kam qolgan mahsulotlar">${low}</span>`:k==='zal'?`<span class="badge muted">${S.pcs.filter(active).length}/${S.pcs.length}</span>`:lock?'<span class="badge muted">yopiq</span>':'';
+    const badge=k==='qarz'&&od?`<span class="badge">${od}</span>`:k==='bar'&&low?`<span class="badge red" title="Kam qolgan mahsulotlar">${low}</span>`:k==='shubhali'&&al?`<span class="badge red" title="Yangi shubhali holatlar">${al}</span>`:k==='zal'?`<span class="badge muted">${S.pcs.filter(active).length}/${S.pcs.length}</span>`:lock?'<span class="badge muted">yopiq</span>':'';
     return `<button type="button" data-v="${k}" class="${ui.view===k?'on':''}${lock?' locked':''}"${lock?' title="Ruxsat berilmagan"':''}>${l}${badge}</button>`};
   $('#nav').innerHTML=NAV.map(btn).join('');
   $('#nav2').innerHTML=btn(['sozlamalar','Sozlamalar','sozlamalar']);
@@ -999,7 +1023,7 @@ function applyTheme(){const t=S.settings.theme;if(t==='system')document.document
 
 function render(){
   const m=$('#main');
-  ({zal:vZal,mijozlar:vClients,bar:vBar,qarz:vDebts,smena:vShift,hisobot:vReport,foyda:vProfit,tariflar:vTariffs,sozlamalar:vSettings}[ui.view]||vZal)(m);
+  ({zal:vZal,mijozlar:vClients,bar:vBar,qarz:vDebts,smena:vShift,hisobot:vReport,shubhali:vAlerts,foyda:vProfit,tariflar:vTariffs,sozlamalar:vSettings}[ui.view]||vZal)(m);
 }
 
 /* =================== ZAL =================== */
@@ -1671,7 +1695,7 @@ function clientModal(id){
         if(blk!==!!c.blocked){if(blk)c.blocked=true;else delete c.blocked;addLog('warn',`Mijoz akkaunti ${blk?'bloklandi':'blokdan chiqarildi'}: ${n} — ${me().name}`)}
         commit();
         if(!balCh)return toast('Saqlandi');
-        const apply=()=>{const was=c.balance;c.balance=Math.max(0,was+nb-bal0);addLog('warn',`Balans tuzatildi: ${n} ${som(was)} → ${som(c.balance)} (${br}) — ${me().name}`);commit();toast('Saqlandi, balans tuzatildi')};
+        const apply=()=>{const was=c.balance;c.balance=Math.max(0,was+nb-bal0);addLog('warn',`Balans tuzatildi: ${n} ${som(was)} → ${som(c.balance)} (${br}) — ${me().name}`);if(c.balance!==was)addAlert('balance',`Balans tuzatildi: ${n} ${som(was)} → ${som(c.balance)} (${br})`,{amount:c.balance-was});commit();toast('Saqlandi, balans tuzatildi')};
         guard('clientBal','Mijoz balansini tuzatish',apply)})}}],
     onMount:ov=>{const sh=$('#cl-sh',ov);sh.onchange=()=>{$('#cl-s',ov).type=$('#cl-s2',ov).type=sh.checked?'text':'password'};
       $('#cl-g',ov).onclick=()=>{const p=genPass();$('#cl-s',ov).value=$('#cl-s2',ov).value=p;sh.checked=true;sh.onchange()}}});
@@ -1686,7 +1710,7 @@ function clientDelete(id){const c=client(id);if(!c)return;const st=clientStats(i
       S.history.forEach(h=>{if(h.clientId===id)h.cname=c.name});
       S.debts.forEach(d=>{if(d.clientId===id){d.name=c.name;d.phone=d.phone||c.phone;d.clientId=null}});
       const nk='n:'+c.name.trim().toLowerCase();S.debtPays.forEach(p=>{if(p.key==='c:'+id){p.key=nk;p.name=c.name;p.clientId=null}});
-      S.clients=S.clients.filter(x=>x.id!==id);addLog('warn',`Mijoz oʻchirildi: ${c.name} (@${c.login})${c.balance?`, balans ${som(c.balance)}`:''} — ${me().name}`);commit();toast('Mijoz oʻchirildi')}}]}))}
+      S.clients=S.clients.filter(x=>x.id!==id);if(c.balance>0)addAlert('balance',`Mijoz balansi bilan oʻchirildi: ${c.name} (@${c.login}), balans ${som(c.balance)}`,{amount:-c.balance});addLog('warn',`Mijoz oʻchirildi: ${c.name} (@${c.login})${c.balance?`, balans ${som(c.balance)}`:''} — ${me().name}`);commit();toast('Mijoz oʻchirildi')}}]}))}
 function topupModal(id){
   const c=client(id);
   modal({title:`Balansni toʻldirish — ${c.name}`,body:`<div class="frm"><label>Summa (soʻm)<input id="tp-a" type="number" min="0" step="1000" value="50000"></label>
@@ -1732,12 +1756,13 @@ function vShift(m){
       <div class="kpi"><div class="l">Kassada naqd boʻlishi kerak</div><div class="v">${can('kassa')?som(exp):`<span class="hid">••••••</span> <button class="btn sm" type="button" data-unhide>Koʻrsatish</button>`}</div><div class="s">${can('kassa')?`boshida ${som(sh.openCash)} + naqd ${som(st.m.cash)}${st.outCash?` − chiqim ${som(st.outCash)}`:''}`:'ruxsat kerak'}</div></div>
       <div class="kpi bad"><div class="l">Qarzga berildi</div><div class="v">${som(st.debt)}</div><div class="s">qarz qaytdi: ${som(st.debtpay)}</div></div></div>
     <div class="cols"><div class="box"><h2>Toʻlov usullari boʻyicha</h2><div class="tbl"><table class="t"><tbody>${Object.entries(METHODS).map(([k,l])=>`<tr><td>${l}</td><td class="r"><b>${som(st.m[k])}</b></td></tr>`).join('')}<tr><td><b>Jami</b></td><td class="r"><b>${som(st.total)}</b></td></tr></tbody></table></div></div>
-      <div class="box"><h2>Nimadan tushdi</h2><div class="tbl"><table class="t"><tbody><tr><td>Kompyuter vaqti</td><td class="r">${som(st.pc)}</td></tr><tr><td>Bar</td><td class="r">${som(st.bar)}</td></tr><tr><td>Balans toʻldirish</td><td class="r">${som(st.topup)}</td></tr><tr><td>Qarz qaytarilishi</td><td class="r">${som(st.debtpay)}</td></tr><tr><td class="muted">Balansdan yechilgan (kassaga kirmaydi)</td><td class="r muted">${som(S.ledger.filter(e=>e.t>=sh.openAt&&e.method==='balance').reduce((a,e)=>a+e.amount,0))}</td></tr></tbody></table></div></div></div>`}
+      <div class="box"><h2>Nimadan tushdi</h2><div class="tbl"><table class="t"><tbody><tr><td>Kompyuter vaqti</td><td class="r">${som(st.pc)}</td></tr><tr><td>Bar</td><td class="r">${som(st.bar)}</td></tr><tr><td>Balans toʻldirish</td><td class="r">${som(st.topup)}</td></tr><tr><td>Qarz qaytarilishi</td><td class="r">${som(st.debtpay)}</td></tr><tr><td class="muted">Balansdan yechilgan (kassaga kirmaydi)</td><td class="r muted">${som(S.ledger.filter(e=>e.t>=sh.openAt&&e.method==='balance').reduce((a,e)=>a+e.amount,0))}</td></tr></tbody></table></div></div></div>
+    ${shiftCashBox(sh,now+1)}`}
   else cur=`<div class="box"><div class="empty"><p style="margin:0 0 10px">Hozir ochiq smena yoʻq. Toʻlovlarni qabul qilishdan oldin smenani oching.</p><button class="btn pri" type="button" id="sh-open">Smenani ochish</button></div></div>`;
   const hist=S.shifts.filter(s=>s.closeAt).slice(-14).reverse();
   m.innerHTML=`<div class="page"><div class="ph"><h1>Smena</h1>${sh?'<button class="btn pri" type="button" id="sh-close">Smenani yopish</button>':''}</div>${cur}
     <div class="box"><h2>Oldingi smenalar</h2><div class="tbl"><table class="t"><thead><tr><th>Xodim</th><th>Ochildi</th><th>Yopildi</th><th class="r">Tushum</th><th class="r">Naqd kutilgan</th><th class="r">Sanalgan</th><th class="r">Farq</th><th class="r">Topshirildi</th></tr></thead><tbody>
-    ${hist.map(s=>{const st=shiftStats(s.openAt,s.closeAt),df=s.counted-s.expected;return `<tr><td>${esc(uname(s.user))}</td><td>${dshort(s.openAt)} ${hm(s.openAt)}</td><td>${dshort(s.closeAt)} ${hm(s.closeAt)}</td><td class="r">${som(st.total)}</td><td class="r">${som(s.expected)}</td><td class="r">${som(s.counted)}</td><td class="r">${df?`<span class="pill ${df<0?'p-off':'p-pause'}">${df>0?'+':''}${num(df)}</span>`:'<span class="pill p-free">0</span>'}</td><td class="r">${s.handed?som(s.handed):'—'}</td></tr>`}).join('')||'<tr><td colspan="8" class="empty">Hali yopilgan smena yoʻq</td></tr>'}</tbody></table></div></div></div>`;
+    ${hist.map(s=>{const st=shiftStats(s.openAt,s.closeAt),df=s.counted-s.expected;return `<tr class="clk" data-sh="${s.id}" title="Kassa harakatini koʻrish"><td>${esc(uname(s.user))}</td><td>${dshort(s.openAt)} ${hm(s.openAt)}</td><td>${dshort(s.closeAt)} ${hm(s.closeAt)}</td><td class="r">${som(st.total)}</td><td class="r">${som(s.expected)}</td><td class="r">${som(s.counted)}</td><td class="r">${df?`<span class="pill ${df<0?'p-off':'p-pause'}">${df>0?'+':''}${num(df)}</span>`:'<span class="pill p-free">0</span>'}</td><td class="r">${s.handed?som(s.handed):'—'}</td></tr>`}).join('')||'<tr><td colspan="8" class="empty">Hali yopilgan smena yoʻq</td></tr>'}</tbody></table></div></div></div>`;
   if($('#sh-open'))$('#sh-open').onclick=()=>modal({title:'Smenani ochish',body:`<div class="frm"><label>Xodim<input value="${esc(me().name)}" disabled></label><label>Kassadagi naqd pul (soʻm)<input id="so-c" type="number" min="0" step="1000" value="500000"></label></div>`,
     actions:[{label:'Bekor qilish'},{label:'Ochish',cls:'pri',run:()=>{S.shifts.push({id:uid(),user:S.user,openAt:Date.now(),openCash:vn('so-c'),closeAt:null});addLog('info',`Smena ochildi: ${me().name}, kassa ${som(vn('so-c'))}`);commit();toast('Smena ochildi')}}]});
   if($('#sh-close'))$('#sh-close').onclick=()=>{const st=shiftStats(sh.openAt,Date.now()+1),exp=sh.openCash+st.m.cash-st.outCash;
@@ -1752,6 +1777,7 @@ function vShift(m){
         if(v('sc-c')==='')return $('#sc-d').hidden=false,$('#sc-d').innerHTML='<div class="ln" style="color:var(--off)"><span>Kassadagi naqd pulni sanab kiriting</span></div>',false;
         const counted=vn('sc-c'),left=v('sc-l')===''?counted:Math.min(vn('sc-l'),counted),nu=v('sc-u'),now=Date.now();
         sh.closeAt=now;sh.counted=counted;sh.expected=exp;sh.handed=counted-left;
+        if(counted<exp)addAlert('shortage',shortAlert(sh).text,{user:sh.user,amount:exp-counted,shift:sh.id});
         addLog(counted===exp?'info':'warn',`Smena yopildi: ${uname(sh.user)} · tushum ${som(st.total)} · farq ${num(counted-exp)}${counted-left?` · topshirildi ${som(counted-left)}`:''}`);
         S.shifts.push({id:uid(),user:nu,openAt:now,openCash:left,closeAt:null,auto:true});
         addLog('info',`Yangi smena avtomatik ochildi: ${uname(nu)}, kassa ${som(left)}`);
@@ -1763,6 +1789,41 @@ function vShift(m){
         $('#sc-t').textContent=v('sc-c')===''?'':`Yangi smena ${som(l)} bilan boshlanadi${c-l>0?` · ${som(c-l)} topshiriladi (kassadan olinadi)`:''}.`;
         if(!can('kassa'))return $('#sc-d').hidden=true;const df=vn('sc-c')-exp;$('#sc-d').innerHTML=`<div class="ln big"><span>Farq</span><span style="color:${df<0?'var(--off)':df>0?'var(--warn)':'var(--ok)'}">${df>0?'+':''}${som(df)}</span></div>`};ov.addEventListener('input',u);u()}})};
   $$('[data-unhide]',m).forEach(b=>b.onclick=()=>guard('kassa','Kassa summasini koʻrish',()=>render()));
+  $$('[data-sh]',m).forEach(r=>r.onclick=()=>shiftDetail(r.dataset.sh));
+}
+function shiftCashBox(sh,to,noTitle){const uname=(S.users.find(u=>u.login===sh.user)||{name:sh.user}).name;
+  const head=noTitle?'':`<h2>Kassa harakati (naqd)<small>smena: ${esc(uname)}, ${dmy(sh.openAt)} dan${sh.closeAt?` ${dmy(sh.closeAt)} gacha`:''}</small></h2>`;
+  if(!can('kassa'))return `<div class="box kh">${head}<div class="tbl"><table class="t"><tbody><tr><td colspan="2" class="empty">Kassa summasi yashirin. <span class="hid">••••••</span> <button class="btn sm" type="button" data-unhide>Koʻrsatish</button></td></tr></tbody></table></div></div>`;
+  const cf=cashFlow(sh.openAt,to,sh.openCash),df=sh.closeAt?sh.counted-sh.expected:0;
+  return `<div class="box kh">${head}<div class="tbl"><table class="t"><tbody>${cashRows(cf)}
+    <tr class="tot"><td><b>Kassada boʻlishi kerak</b></td><td class="r"><b>${num(sh.closeAt?sh.expected:cf.total)}</b></td></tr>
+    ${sh.closeAt?`<tr><td>Sanalgan</td><td class="r">${num(sh.counted)}</td></tr><tr><td>Farq</td><td class="r" style="color:${df<0?'var(--off)':df>0?'var(--warn)':'var(--ok)'}">${df>0?'+':df<0?'−':''}${num(Math.abs(df))}</td></tr>${sh.handed?`<tr><td>Topshirildi</td><td class="r">${num(sh.handed)}</td></tr>`:''}`:''}</tbody></table></div>
+    ${cf.out.length?`<h2 style="border-top:1px solid var(--line)">Naqd chiqimlar<small>${cf.out.length} ta · −${num(cf.outCash)}</small></h2>${outList(cf.out)}`:''}</div>`}
+function shiftDetail(id){const sh=S.shifts.find(x=>x.id===id);if(!sh)return;const u=(S.users.find(x=>x.login===sh.user)||{name:sh.user}).name;
+  const h=modal({title:`Smena — ${u}`,wide:true,body:`<p style="margin:0 0 12px">${dmy(sh.openAt)} dan ${dmy(sh.closeAt)} gacha</p>${shiftCashBox(sh,sh.closeAt,true)}`,
+    onMount:ov=>$$('[data-unhide]',ov).forEach(b=>b.onclick=()=>guard('kassa','Kassa summasini koʻrish',()=>{h.close();shiftDetail(id)}))})}
+
+/* =================== SHUBHALI HOLATLAR =================== */
+function vAlerts(m){
+  if(!can('shubhali')){m.innerHTML='<div class="page"><div class="box"><div class="empty">Shubhali holatlarni koʻrishga ruxsat yoʻq.</div></div></div>';return}
+  if(!ui.al)ui.al={pre:'week',k:''};const now=Date.now();
+  const rg=ui.al.pre==='all'?{f:0,t:now}:repRange(ui.al.pre),F=rg.f,T=rg.t+MIN;
+  const uname=l=>(S.users.find(u=>u.login===l)||{name:l||'—'}).name;
+  const inR=S.alerts.filter(a=>a.t>=F&&a.t<T),list=inR.filter(a=>!ui.al.k||a.kind===ui.al.k).sort((a,b)=>b.t-a.t),seen=S.alertSeen[S.user]||0;
+  const cnt=k=>inR.filter(a=>a.kind===k).length;
+  // operatorlar boʻyicha smena kamomadi (davrda yopilgan smenalar)
+  const ops={};S.shifts.filter(x=>x.closeAt&&x.closeAt>=F&&x.closeAt<T).forEach(x=>{const o=ops[x.user]||(ops[x.user]={n:0,sn:0,short:0,over:0});const d=x.counted-x.expected;o.n++;if(d<0){o.sn++;o.short-=d}else o.over+=d});
+  const opRows=Object.entries(ops).sort((a,b)=>b[1].short-a[1].short);
+  m.innerHTML=`<div class="page"><h1 class="sr">Shubhali holatlar</h1>
+    <div class="box rfilt"><div class="pchips">${[['today','Bugun'],['yday','Kecha'],['week','Shu hafta'],['month','Shu oy'],['all','Hammasi']].map(([k,l])=>`<button type="button" data-ap="${k}" class="${ui.al.pre===k?'on':''}">${l}</button>`).join('')}</div>
+      <div class="pchips"><button type="button" data-ak="" class="${ui.al.k?'':'on'}">Hammasi · ${inR.length}</button>${Object.entries(ALERT_KINDS).map(([k,x])=>`<button type="button" data-ak="${k}" class="${ui.al.k===k?'on':''}">${x[0]} · ${cnt(k)}</button>`).join('')}</div></div>
+    <div class="box"><h2>Roʻyxat<small>${QUICK_MIN} daqiqa ichida pul qaytarib yopilgan seanslar, qarz va balans tahrirlari, smena kamomadi</small></h2><div class="tbl"><table class="t"><thead><tr><th>Vaqt</th><th>Turi</th><th>Tafsilot</th><th>Xodim</th><th class="r">Summa</th></tr></thead><tbody>
+      ${list.slice(0,500).map(a=>{const k=ALERT_KINDS[a.kind]||[a.kind,'p-pause'];return `<tr><td class="nw">${a.t>seen?'<b>':''}${dmy(a.t)}${a.t>seen?'</b>':''}</td><td class="nw"><span class="pill ${k[1]}">${k[0]}</span></td><td>${esc(a.text)}</td><td class="nw">${esc(uname(a.user))}</td><td class="r">${a.amount?(a.amount<0?'−':'')+num(Math.abs(a.amount)):'—'}</td></tr>`}).join('')||'<tr><td colspan="5" class="empty">Bu davrda shubhali holat yoʻq</td></tr>'}</tbody></table></div></div>
+    <div class="box"><h2>Operatorlar boʻyicha smena kamomadi<small>davrda yopilgan smenalar</small></h2><div class="tbl"><table class="t"><thead><tr><th>Xodim</th><th class="r">Smenalar</th><th class="r">Kamomadli</th><th class="r">Jami kamomad</th><th class="r">Jami ortiqcha</th></tr></thead><tbody>
+      ${opRows.map(([l,o])=>`<tr><td>${esc(uname(l))}</td><td class="r">${o.n}</td><td class="r">${o.sn}</td><td class="r"${o.short?' style="color:var(--off);font-weight:600"':''}>${o.short?'−'+num(o.short):'0'}</td><td class="r">${o.over?'+'+num(o.over):'0'}</td></tr>`).join('')||'<tr><td colspan="5" class="empty">Bu davrda yopilgan smena yoʻq</td></tr>'}</tbody></table></div></div></div>`;
+  $$('[data-ap]',m).forEach(b=>b.onclick=()=>{ui.al.pre=b.dataset.ap;vAlerts(m)});
+  $$('[data-ak]',m).forEach(b=>b.onclick=()=>{ui.al.k=b.dataset.ak;vAlerts(m)});
+  if(S.alerts.some(a=>a.t>seen)){S.alertSeen[S.user]=now;save();renderNav()}
 }
 
 /* =================== HISOBOT =================== */
@@ -1849,8 +1910,8 @@ function debtHist(key){
       const again=()=>{h.close();debtHist(key)};
       $$('[data-he]',ov).forEach(b=>b.onclick=()=>guard('debtDelete','Qarz yozuvini tahrirlash',()=>{const [k,id]=b.dataset.he.split(':');k==='d'?debtEditModal(id,again):payEditModal(id,again)}));
       $$('[data-hx]',ov).forEach(b=>b.onclick=()=>guard('debtDelete','Qarz yozuvini oʻchirish',()=>{const [k,id]=b.dataset.hx.split(':');
-        if(k==='d'){const d=S.debts.find(y=>y.id===id);confirmM('Yozuvni oʻchirish',`${dmy(d.t)} — ${som(d.amount)} qarz yozuvi oʻchirilsinmi?`,()=>{S.debts=S.debts.filter(y=>y!==d);addLog('warn',`Qarz yozuvi oʻchirildi: ${x.name} ${som(d.amount)} (${me().name})`);commit();again()},'Oʻchirish')}
-        else{const p=S.debtPays.find(y=>y.id===id);confirmM('Toʻlovni oʻchirish',`${dmy(p.t)} — ${som(p.amount)} toʻlov oʻchirilsinmi? Kassa hisobidan ham olib tashlanadi.`,()=>{S.debtPays=S.debtPays.filter(y=>y!==p);if(p.ledgerId)S.ledger=S.ledger.filter(l=>l.id!==p.ledgerId);addLog('warn',`Qarz toʻlovi oʻchirildi: ${x.name} ${som(p.amount)} (${me().name})`);commit();again()},'Oʻchirish')}}));
+        if(k==='d'){const d=S.debts.find(y=>y.id===id);confirmM('Yozuvni oʻchirish',`${dmy(d.t)} — ${som(d.amount)} qarz yozuvi oʻchirilsinmi?`,()=>{S.debts=S.debts.filter(y=>y!==d);addLog('warn',`Qarz yozuvi oʻchirildi: ${x.name} ${som(d.amount)} (${me().name})`);addAlert('debt',`Qarz yozuvi oʻchirildi: ${x.name} ${som(d.amount)} (${dmy(d.t)})`,{amount:-d.amount});commit();again()},'Oʻchirish')}
+        else{const p=S.debtPays.find(y=>y.id===id);confirmM('Toʻlovni oʻchirish',`${dmy(p.t)} — ${som(p.amount)} toʻlov oʻchirilsinmi? Kassa hisobidan ham olib tashlanadi.`,()=>{S.debtPays=S.debtPays.filter(y=>y!==p);if(p.ledgerId)S.ledger=S.ledger.filter(l=>l.id!==p.ledgerId);addLog('warn',`Qarz toʻlovi oʻchirildi: ${x.name} ${som(p.amount)} (${me().name})`);addAlert('debt',`Qarz toʻlovi oʻchirildi: ${x.name} ${som(p.amount)} (${dmy(p.t)}), kassadan ham olib tashlandi`,{amount:-p.amount});commit();again()},'Oʻchirish')}}));
     }});
 }
 /* Bugun kim qancha qarz boʻldi / toʻladi */
@@ -1883,12 +1944,12 @@ function debtorEditModal(key){const x=debtors()[key];if(!x)return;const c=x.clie
 function debtEditModal(id,done){const d=S.debts.find(y=>y.id===id);
   modal({title:'Qarz yozuvini tahrirlash',body:`<div class="frm"><label>Summa (soʻm)<input id="de-a" type="number" min="1" step="500" value="${d.amount}"></label><label>Izoh<input id="de-t" value="${esc(d.note||'')}"></label><div class="err" id="de-e"></div></div>`,
     actions:[{label:'Bekor qilish'},{label:'Saqlash',cls:'pri',run:()=>{const a=vn('de-a');if(!a)return $('#de-e').textContent='Summani kiriting',false;
-      addLog('warn',`Qarz yozuvi oʻzgartirildi: ${d.name} ${som(d.amount)} → ${som(a)} (${me().name})`);d.amount=a;d.note=v('de-t').trim()||'Qoʻlda yozildi';commit();done()}}]})}
+      addLog('warn',`Qarz yozuvi oʻzgartirildi: ${d.name} ${som(d.amount)} → ${som(a)} (${me().name})`);if(a!==d.amount)addAlert('debt',`Qarz yozuvi oʻzgartirildi: ${d.name} ${som(d.amount)} → ${som(a)}`,{amount:a-d.amount});d.amount=a;d.note=v('de-t').trim()||'Qoʻlda yozildi';commit();done()}}]})}
 function payEditModal(id,done){const p=S.debtPays.find(y=>y.id===id);
   modal({title:'Toʻlovni tahrirlash',body:`<div class="frm"><div class="row2"><label>Berilgan summa<input id="pe-a" type="number" min="1" step="500" value="${p.amount}"></label><label>Chegirma, %<input id="pe-p" type="number" min="0" max="100" value="${p.pct||0}"></label></div>
     <label>Toʻlov usuli<select id="pe-m">${methodOpts(p.method)}</select></label><div class="err" id="pe-e"></div></div>`,
     actions:[{label:'Bekor qilish'},{label:'Saqlash',cls:'pri',run:()=>{const a=vn('pe-a'),pc=Math.max(0,Math.min(100,+v('pe-p')||0));if(!a)return $('#pe-e').textContent='Summani kiriting',false;
-      addLog('warn',`Qarz toʻlovi oʻzgartirildi: ${p.name} ${som(p.amount)} → ${som(a)} (${me().name})`);
+      addLog('warn',`Qarz toʻlovi oʻzgartirildi: ${p.name} ${som(p.amount)} → ${som(a)} (${me().name})`);if(a!==p.amount||pc!==(p.pct||0)||v('pe-m')!==p.method)addAlert('debt',`Qarz toʻlovi oʻzgartirildi: ${p.name} ${som(p.amount)} → ${som(a)}${pc!==(p.pct||0)?`, chegirma ${p.pct||0}% → ${pc}%`:''}${v('pe-m')!==p.method?`, ${METHODS[p.method]||'—'} → ${METHODS[v('pe-m')]}`:''}`,{amount:a-p.amount});
       p.amount=a;p.pct=pc;p.disc=Math.round(a*pc/100);p.method=v('pe-m');const l=p.ledgerId&&S.ledger.find(y=>y.id===p.ledgerId);if(l){l.amount=a;l.method=p.method}commit();done()}}]})}
 async function debtExport(list){
   const keys=new Set(list.map(x=>x.key));
@@ -1935,7 +1996,7 @@ function vDebts(m){
     $$('[data-dm]',m).forEach(b=>b.onclick=()=>{const k=b.dataset.dm,x=debtors()[k];
       popMenu(b,[{icon:MI.hist,label:'Tarix (yozuvlarni tahrirlash)',run:()=>debtHist(k)},{icon:MI.edit,label:'Tahrirlash (ism, telefon)',run:()=>debtorEditModal(k)},'-',
         {icon:MI.del,label:'Oʻchirib tashlash',danger:true,run:()=>guard('debtDelete','Qarzdorni oʻchirish',()=>confirmM('Qarzdorni oʻchirish',`${esc(x.name)} — barcha qarz va toʻlov yozuvlari (${x.n+S.debtPays.filter(p=>p.key===k).length} ta) oʻchiriladi. Qoldiq: ${som(x.left)}. Kassaga tushgan toʻlovlar hisobotda qoladi.`,()=>{
-          S.debts=S.debts.filter(d=>debtKey(d)!==k);S.debtPays=S.debtPays.filter(p=>p.key!==k);addLog('warn',`Qarzdor oʻchirildi: ${x.name} (qoldiq ${som(x.left)}) — ${me().name}`);commit();toast('Qarzdor oʻchirildi')},'Oʻchirish'))}])});
+          S.debts=S.debts.filter(d=>debtKey(d)!==k);S.debtPays=S.debtPays.filter(p=>p.key!==k);addLog('warn',`Qarzdor oʻchirildi: ${x.name} (qoldiq ${som(x.left)}) — ${me().name}`);addAlert('debt',`Qarzdor oʻchirildi: ${x.name}, qoldiq ${som(x.left)} hisobdan chiqdi`,{amount:-x.left});commit();toast('Qarzdor oʻchirildi')},'Oʻchirish'))}])});
     $$('[data-dh]',m).forEach(b=>b.onclick=()=>debtHist(b.dataset.dh));};
   $('#dq').oninput=e=>{ui.dq=e.target.value;body()};
   $('#dall').onchange=e=>{ui.dAll=e.target.checked;body()};
@@ -1982,9 +2043,7 @@ function vReport(m){
   const dN=S.debts.filter(d=>d.t>=F&&d.t<T),dP=S.debtPays.filter(p=>p.t>=F&&p.t<T);
   const out=S.expenses.filter(e=>e.src==='kassa'&&e.t>=F&&e.t<T),outCash=sum(out.filter(e=>e.method==='cash'),e=>e.amount),outOther=sum(out.filter(e=>e.method!=='cash'),e=>e.amount);
   const shAt=S.shifts.find(x=>x.openAt<=F&&(!x.closeAt||x.closeAt>F))||S.shifts.filter(x=>x.openAt>=F&&x.openAt<T).sort((a,b)=>a.openAt-b.openAt)[0];
-  const startCash=shAt?shAt.openCash:0,cashK=k=>sum(L.filter(e=>e.method==='cash'&&e.kind===k),e=>e.amount);
-  const kh=[['Smena boshidagi kassa',startCash,''],['+ Kompyuter vaqti (naqd)',cashK('pc'),'+'],['+ Bar (naqd)',cashK('bar'),'+'],['+ Akkaunt toʻldirish (naqd)',cashK('topup'),'+'],['+ Qarz toʻlovlari (naqd)',cashK('debtpay'),'+'],['− Chiqimlar (naqd)',-outCash,'-']];
-  const khTot=kh.reduce((a,r)=>a+r[1],0);
+  const cf=cashFlow(F,T,shAt?shAt.openCash:0),khTot=cf.total;
   const cashIn=sum(L.filter(e=>e.method==='cash'),e=>e.amount),cardIn=sum(L.filter(e=>INFLOW(e.method)&&e.method!=='cash'),e=>e.amount);
   // grafiklar
   const span=Te-F,hourly=T-F<=36*3600e3;let rows=[];
@@ -2013,7 +2072,7 @@ function vReport(m){
       <div class="kpi"><div class="l">Kassadan chiqim</div><div class="v">${num(outCash+outOther)}</div><div class="s">${out.length} ta chiqim</div></div>
       <div class="kpi"><div class="l">Kassada naqd</div><div class="v">${can('kassa')?num(khTot):`<span class="hid">••••••</span> <button class="btn sm" type="button" data-unhide>Koʻrsatish</button>`}</div><div class="s">karta: +${num(cardIn)} / −${num(outOther)}</div></div></div>
     <div class="box kh"><h2>Kassa harakati (naqd)<small>${shAt?`smena: ${esc((S.users.find(u=>u.login===shAt.user)||{name:shAt.user}).name)}, ${dmy(shAt.openAt)} dan`:'davrda smena ochilmagan'}</small></h2><div class="tbl"><table class="t"><tbody>
-      ${!can('kassa')?`<tr><td colspan="2" class="empty">Kassa summasi yashirin. ${`<span class="hid">••••••</span> <button class="btn sm" type="button" data-unhide>Koʻrsatish</button>`}</td></tr>`:kh.map(r=>`<tr><td>${r[0]}</td><td class="r"${r[2]==='+'&&r[1]>0?' style="color:var(--ok)"':r[2]==='-'&&r[1]<0?' style="color:var(--off)"':''}>${num(Math.abs(r[1]))}</td></tr>`).join('')}
+      ${!can('kassa')?`<tr><td colspan="2" class="empty">Kassa summasi yashirin. ${`<span class="hid">••••••</span> <button class="btn sm" type="button" data-unhide>Koʻrsatish</button>`}</td></tr>`:cashRows(cf)}
       ${can('kassa')?`<tr class="tot"><td><b>Kassada boʻlishi kerak</b></td><td class="r"><b>${num(khTot)}</b></td></tr>`:''}</tbody></table></div></div>
     <div class="box"><h2>${hourly?'Soatlar boʻyicha tushum':'Kunlik tushum'}<small><span class="legend" style="margin:0"><span><i style="background:var(--c1)"></i>Kompyuter</span><span><i style="background:var(--c2)"></i>Bar</span></span></small></h2><div class="boxb">${rows.length?stackChart(rows,['var(--c1)','var(--c2)'],compact):'<div class="empty">Bu davr hali boshlanmagan</div>'}</div></div>
     ${out.length?`<div class="box"><h2>Kassadan chiqimlar<small>${out.length} ta</small></h2><div class="tbl"><table class="t"><thead><tr><th>Sana</th><th>Turi</th><th>Izoh</th><th>Qayerdan</th><th class="r">Summa</th></tr></thead><tbody>${out.slice().sort((a,b)=>b.t-a.t).map(e=>`<tr><td>${dmy(e.t)}</td><td>${esc(e.cat)}</td><td class="muted">${esc(e.note)}</td><td>${METHODS[e.method]||'—'}</td><td class="r">${num(e.amount)}</td></tr>`).join('')}</tbody></table></div></div>`:''}
@@ -2483,6 +2542,7 @@ const CLEAN=[
   {k:'log',t:'Jurnal',d:'Barcha hodisalar tarixi (Zal ostidagi xabarlar, kompyuter tarixi)',n:()=>S.log.length,run:()=>{S.log=[]}},
   {k:'debt',t:'Qarz daftari',d:'Barcha qarzdorlar, qarz va toʻlov yozuvlari',n:()=>S.debts.length+S.debtPays.length,run:()=>{S.debts=[];S.debtPays=[]}},
   {k:'shift',t:'Smenalar tarixi',d:'Yopilgan smenalar. Hozir ochiq smena qoladi',n:()=>S.shifts.filter(x=>x.closeAt).length,run:()=>{S.shifts=S.shifts.filter(x=>!x.closeAt)}},
+  {k:'alerts',t:'Shubhali holatlar',d:'Tez yopilgan seanslar, qarz va balans tahrirlari, smena kamomadi roʻyxati',n:()=>S.alerts.length,run:()=>{S.alerts=[];S.alertSeen={}}},
   {k:'stock',t:'Ombor tarixi',d:'Kirim yozuvlari. Mahsulot qoldigʻi oʻzgarmaydi',n:()=>S.stockLog.length,run:()=>{S.stockLog=[]}},
   {k:'req',t:'Klient soʻrovlari',d:'Kompyuterlardan kelgan soʻrovlar roʻyxati',n:()=>S.requests.length,run:()=>{S.requests=[]}},
   {k:'profit',t:'Foyda hisob-kitobi',d:'Xarajat yozuvlari (ijara, internet, ish haqi va boshqalar)',n:()=>S.expenses.filter(e=>e.src!=='kassa').length,run:()=>{S.expenses=S.expenses.filter(e=>e.src==='kassa')}},
