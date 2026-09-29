@@ -498,6 +498,21 @@ kbd{font:600 12px "JetBrains Mono",ui-monospace,monospace;border:1px solid var(-
 .ov{position:fixed;inset:0;background:var(--ov);display:grid;place-items:center;z-index:50;padding:16px}
 .dlg{background:var(--panel);border-radius:12px;box-shadow:var(--shadow);width:min(470px,100%);max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);display:flex;flex-direction:column;border:1px solid var(--line2)}
 .dlg.wide{width:min(760px,100%)}
+/* katta, oʻlchami oʻzgaradigan oyna (Jarayonlar) */
+.dlg.xl{width:min(1100px,100%);height:min(760px,calc(100dvh - 32px));min-width:min(560px,100%);min-height:320px;max-width:100%;resize:both;overflow:hidden}
+.dlg.xl.max{width:100%!important;height:calc(100dvh - 32px)!important;resize:none}
+.dlg.xl .dlg-b{flex:1;min-height:0;display:flex;flex-direction:column}
+.dlg.xl .dlg-b>*{flex:none}
+.dlg-h .mx{margin-left:auto;border:0;background:none;font-size:17px;line-height:1;cursor:pointer;color:var(--muted);padding:0 6px}
+.dlg-h .mx+.x{margin-left:4px}
+.dlg.xl .dlg-b>.pbox{flex:1;min-height:120px;display:flex;flex-direction:column}
+.pbox .tbl{flex:1;overflow:auto}
+table.pt thead th{position:sticky;top:0;z-index:1}
+table.pt th,table.pt td{padding:7px 9px}
+table.pt td.nm{max-width:280px}
+@media(max-width:900px){table.pt td.nm{max-width:150px}table.pt th,table.pt td{padding:7px 6px}}
+table.pt td.nm b,table.pt td.nm small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+table.pt td.act .btn+.btn{margin-left:6px}
 .dlg-h{display:flex;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line2)}
 .dlg-h h3{margin:0;font-size:16px}
 .dlg-h .x{margin-left:auto;border:0;background:none;font-size:22px;line-height:1;cursor:pointer;color:var(--muted);padding:0 4px}
@@ -868,14 +883,15 @@ function levelOf(sp){const L=levels();let l=L[0];for(const x of L)if(sp>=x.min)l
 /* =================== UI: umumiy =================== */
 function toast(msg,kind){const t=document.createElement('div');t.className='toast'+(kind==='err'?' err':'');t.textContent=msg;$('#toasts').appendChild(t);setTimeout(()=>t.remove(),kind==='err'?4200:2600)}
 const modals=[];
-function modal({title,body,wide,actions,onMount,locked}){
+function modal({title,body,wide,xl,actions,onMount,locked}){
   const ov=document.createElement('div');ov.className='ov';
-  ov.innerHTML=`<div class="dlg${wide?' wide':''}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="dlg-h"><h3>${esc(title)}</h3>${locked?'':'<button class="x" type="button" data-x aria-label="Yopish">×</button>'}</div><div class="dlg-b">${body}</div><div class="dlg-f"></div></div>`;
+  ov.innerHTML=`<div class="dlg${xl?' xl':wide?' wide':''}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="dlg-h"><h3>${esc(title)}</h3>${xl?'<button class="mx" type="button" data-mx aria-label="Butun ekranga" title="Butun ekranga">⤢</button>':''}${locked?'':'<button class="x" type="button" data-x aria-label="Yopish">×</button>'}</div><div class="dlg-b">${body}</div><div class="dlg-f"></div></div>`;
   const f=$('.dlg-f',ov);
   let escFn;const close=()=>{ov.remove();const i=modals.indexOf(escFn);if(i>=0)modals.splice(i,1)};escFn=locked?()=>{}:close;
   (actions||[{label:'Yopish'}]).forEach(a=>{const b=document.createElement('button');b.type='button';b.className='btn '+(a.cls||'');b.textContent=a.label;if(a.id)b.id=a.id;if(a.disabled){b.disabled=true;if(a.title)b.title=a.title}
     b.onclick=()=>{if(a.run&&a.run(ov)===false)return;close()};f.appendChild(b)});
   if(!locked){ov.addEventListener('mousedown',e=>{if(e.target===ov)close()});$('[data-x]',ov).onclick=close}
+  const mx=$('[data-mx]',ov);if(mx)mx.onclick=()=>{const on=$('.dlg',ov).classList.toggle('max');mx.textContent=on?'⤡':'⤢';mx.title=mx.ariaLabel=on?'Kichraytirish':'Butun ekranga'};
   document.body.appendChild(ov);modals.push(escFn);
   if(onMount)onMount(ov,close);
   const first=$('input:not([disabled]),select,textarea',ov);if(first)first.focus();
@@ -1151,9 +1167,9 @@ function cleanProcs(list){let tot=0;const kp=keepList();
 function procsModal(sel){
   const list=sel.filter(p=>p.status!=='off');if(!list.length)return toast('Tanlangan kompyuterlar oʻchiq','err');
   let cur=list.find(p=>procList(p).some(x=>!x.sys))||list[0],draw=()=>{};
-  modal({title:list.length>1?`Jarayonlar — ${list.length} ta kompyuter`:`Jarayonlar — PC ${cur.n}`,wide:true,
+  modal({title:list.length>1?`Jarayonlar — ${list.length} ta kompyuter`:`Jarayonlar — PC ${cur.n}`,xl:true,
     body:`${list.length>1?'<div class="pchips pmt" id="pm-t" role="tablist" aria-label="Kompyuter"></div>':''}<div id="pm-h"></div>
-      <div class="box" style="margin-top:12px"><div class="tbl"><table class="t"><thead><tr><th>Nomi</th><th>Holat</th><th class="r">CPU</th><th class="r">Xotira</th><th class="r">Disk</th><th class="r">Tarmoq</th><th>Tozalanmasin</th><th></th></tr></thead><tbody id="pm-b"></tbody></table></div></div>
+      <div class="box pbox" style="margin-top:12px"><div class="tbl"><table class="t pt"><thead><tr><th>Nomi</th><th>Holat</th><th class="r">CPU</th><th class="r">Xotira</th><th class="r">Disk</th><th class="r">Tarmoq</th><th class="r">Amallar</th></tr></thead><tbody id="pm-b"></tbody></table></div></div>
       <p class="note" style="margin:10px 0 0">«Saqlansin» belgilangan ilova tozalashda yopilmaydi — bu hamma kompyuterlarga amal qiladi. Tizim jarayonlari hech qachon yopilmaydi. Maʼlumot har 2 soniyada yangilanadi.</p>`,
     actions:[{label:'Yopish'},...(list.length>1?[{label:`Hammasida tozalash (${list.length} ta PC)`,cls:'dng',run:()=>{guard('procs','Jarayonlarni tozalash',()=>{cleanProcs(list);draw()});return false}}]:[]),
       {label:'Tozalash',cls:'dngf',run:()=>{guard('procs','Jarayonlarni tozalash',()=>{cleanProcs([cur]);draw()});return false}}],
@@ -1164,10 +1180,9 @@ function procsModal(sel){
       const t=$('#pm-t',ov);if(t)t.innerHTML=list.map(p=>`<button type="button" role="tab" aria-selected="${p===cur}" class="${p===cur?'on':''}" data-pc="${p.n}">PC ${p.n} · ${procList(p).filter(x=>!x.sys).length}</button>`).join('');
       $('#pm-h',ov).innerHTML=`<div class="kpis"><div class="kpi"><div class="l">PC ${cur.n} · CPU</div><div class="v">${Math.min(99,Math.round(cpu))}%</div></div><div class="kpi"><div class="l">Xotira</div><div class="v">${(mem/1024).toFixed(1)} GB</div><div class="s">${NET?(online(cur)?'ochiq ilovalar':'klient ulanmagan'):'16 GB dan'}</div></div>
         <div class="kpi"><div class="l">Ochiq ilovalar</div><div class="v">${l.filter(x=>!x.sys).length}</div><div class="s">${cur.session?esc(who(cur.session)):'seans yoʻq — qulf ekrani'}</div></div></div>`;
-      $('#pm-b',ov).innerHTML=rows.map(r=>{const k=kp.includes(r.x.name);return `<tr><td><b>${esc(r.x.name)}</b><small>${esc(r.x.exe)}</small></td><td>${r.x.sys?'<span class="pill p-mut">Tizim</span>':r.x.game?'<span class="pill p-busy">Oʻyin</span>':'<span class="pill p-acc">Ilova</span>'}</td>
+      $('#pm-b',ov).innerHTML=rows.map(r=>{const k=kp.includes(r.x.name);return `<tr><td class="nm" title="${esc(r.x.name)} — ${esc(r.x.exe)}"><b>${esc(r.x.name)}</b><small>${esc(r.x.exe)}</small></td><td>${r.x.sys?'<span class="pill p-mut">Tizim</span>':r.x.game?'<span class="pill p-busy">Oʻyin</span>':'<span class="pill p-acc">Ilova</span>'}</td>
         <td class="r">${r.c.toFixed(1)}%</td><td class="r">${num(r.mm)} MB</td><td class="r">${r.d.toFixed(1)} MB/s</td><td class="r">${r.nt.toFixed(1)} Mbit/s</td>
-        <td>${r.x.sys?'<span class="muted">tizim</span>':`<button class="btn sm keep${k?' on':''}" type="button" data-keep="${esc(r.x.name)}" aria-pressed="${k}">${MI.lock} ${k?'Saqlanadi':'Saqlansin'}</button>`}</td>
-        <td class="act">${r.x.sys?'':`<button class="btn sm dng" type="button" data-kill="${esc(r.x.name)}">Tugatish</button>`}</td></tr>`}).join('')||`<tr><td colspan="8" class="empty">${NET?(online(cur)?(net.procs[cur.n]?'Ochiq ilova yoʻq':'Roʻyxat olinmoqda…'):'Klient ulanmagan'):'Kompyuter oʻchiq'}</td></tr>`;
+        <td class="act">${r.x.sys?'<span class="muted">tizim</span>':`<button class="btn sm keep${k?' on':''}" type="button" data-keep="${esc(r.x.name)}" aria-pressed="${k}">${MI.lock} ${k?'Saqlanadi':'Saqlansin'}</button><button class="btn sm dng" type="button" data-kill="${esc(r.x.name)}">Tugatish</button>`}</td></tr>`}).join('')||`<tr><td colspan="7" class="empty">${NET?(online(cur)?(net.procs[cur.n]?'Ochiq ilova yoʻq':'Roʻyxat olinmoqda…'):'Klient ulanmagan'):'Kompyuter oʻchiq'}</td></tr>`;
       $$('#pm-t [data-pc]',ov).forEach(b=>b.onclick=()=>{cur=pcBy(+b.dataset.pc);draw()});
       $$('[data-keep]',ov).forEach(b=>b.onclick=()=>{const nm=b.dataset.keep,kl=keepList(),i=kl.indexOf(nm);i>=0?kl.splice(i,1):kl.push(nm);
         addLog('info',`${nm}: ${i>=0?'tozalashda yopiladigan boʻldi':'tozalashda saqlanadigan qilib belgilandi'} — ${me().name}`);save();draw()});
