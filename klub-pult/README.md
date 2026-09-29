@@ -45,6 +45,7 @@ xabarlar konverti `{v,type,id,ts,payload}`.
 - **Agent → server:** `heartbeat`, `auth.login`, `session.started/updated/ended`, `client.request_time`,
   `client.call_admin`, `client.warning_shown`, `process.list.result`, `time.request/synced`, `message.shown`,
   `lock.wallpaper.request`, `client.unpair`. Har biriga `ack`/`error` javob.
+- **Operator parollari** bazada ochiq emas, **argon2id** hash koʻrinishida saqlanadi (Klub Pult Server; brauzerda ochilgan prototipda — PBKDF2-SHA256). Eski bazadagi ochiq parollar dastur ochilganda avtomatik hash'ga oʻtkaziladi.
 - **Xizmat paroli** agentga `pbkdf2$<takror>$<salt b64>$<hash b64>` (SHA-256) formatida yuboriladi.
 - **Wake-on-LAN** haqiqiy UDP paket (255.255.255.255 va subnet broadcast, 9 va 7-port).
 

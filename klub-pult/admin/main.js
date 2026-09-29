@@ -9,6 +9,11 @@ const net = require('./server');
 let db = null, dbFile = '', dbErr = '';
 try { db = require('./db'); } catch (e) { dbErr = e.message || String(e); }
 
+// Operator parollari argon2id bilan hash qilinadi (native modul main jarayonda ishlaydi).
+// Yuklanmasa, index.html WebCrypto PBKDF2 ga qaytadi — kirish buzilmaydi.
+let argon2 = null;
+try { argon2 = require('@node-rs/argon2'); } catch (e) { argon2 = null; }
+
 if (!app.requestSingleInstanceLock()) app.quit();
 
 let win, quitting = false;
@@ -43,6 +48,9 @@ ipcMain.on('net:send', (e, id, msg) => net.send(id, msg));
 ipcMain.on('net:close', (e, id) => net.close(id));
 ipcMain.handle('net:wol', (e, mac) => net.wol(mac));
 ipcMain.handle('app:version', () => app.getVersion());
+ipcMain.on('pw:ok', e => { e.returnValue = !!argon2; });
+ipcMain.handle('pw:hash', (e, pw) => argon2.hash(String(pw)));
+ipcMain.handle('pw:verify', async (e, hash, pw) => { try { return await argon2.verify(String(hash), String(pw)); } catch { return false; } });
 
 // ---- SQLite baza (sinxron oʻqish preload uchun, yozish debounce) ----
 let dbReady = false;

@@ -50,3 +50,8 @@ iscc /DMyAppVersion=0.1.8 installer/dust2-klient.iss
 Batafsil: [`klub-pult/README.md`](klub-pult/README.md), [`docs/QOLLANMA.md`](docs/QOLLANMA.md), [`shared/protocol.md`](shared/protocol.md).
 
 Fayllar kod imzosi bilan imzolanmagan — SmartScreen chiqsa: **More info / Дополнительно → Run anyway**.
+
+## Mualliflik huquqi
+
+© 2026 DUST2 GAMEZONE. Barcha huquqlar himoyalangan. Dasturni ruxsatsiz nusxalash,
+tarqatish yoki o'zgartirish taqiqlanadi — batafsil: [`LICENSE`](LICENSE).

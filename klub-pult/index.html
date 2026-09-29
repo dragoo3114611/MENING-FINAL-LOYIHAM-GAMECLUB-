@@ -862,6 +862,7 @@ function migrate(){
   if(!S.lockByGroup)S.lockByGroup={};
   if(!S.stockLog)S.stockLog=[];
   S.users.forEach(u=>{if(u.active==null)u.active=true;if(u.role!=='admin'){u.perms=Object.assign({},DEF_PERMS,S.perms||{},u.perms||{})}});
+  if(S.users.some(u=>u.pass&&!pwIsHash(u.pass)))pwMigrate();
   if(!S.requests)S.requests=[];
   if(!S.debtPays){S.debtPays=[];S.debts.forEach(d=>{(d.pays||[]).forEach(x=>S.debtPays.push({id:uid(),key:debtKey(d),clientId:d.clientId,name:d.name,t:x.t,amount:x.amount,disc:x.disc||0,pct:x.disc&&x.amount?Math.round(x.disc/x.amount*100):0,method:x.method}));delete d.pays;delete d.paid})}
   if(st.lock&&st.lock.sPc==null)st.lock.sPc=100;
@@ -901,7 +902,10 @@ function modal({title,body,wide,xl,actions,onMount,locked}){
   const f=$('.dlg-f',ov);
   let escFn;const close=()=>{ov.remove();const i=modals.indexOf(escFn);if(i>=0)modals.splice(i,1)};escFn=locked?()=>{}:close;
   (actions||[{label:'Yopish'}]).forEach(a=>{const b=document.createElement('button');b.type='button';b.className='btn '+(a.cls||'');b.textContent=a.label;if(a.id)b.id=a.id;if(a.disabled){b.disabled=true;if(a.title)b.title=a.title}
-    b.onclick=()=>{if(a.run&&a.run(ov)===false)return;close()};f.appendChild(b)});
+    b.onclick=()=>{const r=a.run&&a.run(ov);if(r===false)return;
+      if(r&&typeof r.then==='function'){const bs=[...f.children],was=bs.map(x=>x.disabled);bs.forEach(x=>x.disabled=true);
+        const back=()=>bs.forEach((x,i)=>x.disabled=was[i]);r.then(x=>{back();if(x!==false)close()},err=>{back();toast('Xato: '+(err&&err.message||err),'err')});return}
+      close()};f.appendChild(b)});
   if(!locked){ov.addEventListener('mousedown',e=>{if(e.target===ov)close()});$('[data-x]',ov).onclick=close}
   const mx=$('[data-mx]',ov);if(mx)mx.onclick=()=>{const on=$('.dlg',ov).classList.toggle('max');mx.textContent=on?'⤡':'⤢';mx.title=mx.ariaLabel=on?'Kichraytirish':'Butun ekranga'};
   document.body.appendChild(ov);modals.push(escFn);
@@ -920,10 +924,35 @@ function adminPrompt(label,fn){
     ${admins.length>1?`<label>Administrator<select id="ap-u">${admins.map(u=>`<option value="${esc(u.login)}">${esc(u.name)}</option>`).join('')}</select></label>`:''}
     <label>Administrator paroli<input id="ap-p" type="password" autocomplete="off"></label><div class="err" id="ap-e"></div></div>`,
     actions:[{label:'Bekor qilish'},{label:'Ruxsat berish',cls:'pri',run:()=>{const a=admins.length>1?admins.find(u=>u.login===v('ap-u')):admins[0];
-      if(!a||(a.pass||'')!==v('ap-p'))return $('#ap-e').textContent='Parol notoʻgʻri',false;
-      ui.elev=Date.now()+5*MIN;addLog('warn',`Admin ruxsati bilan: ${label} — ${me().name} (tasdiqladi: ${a.name})`);setTimeout(fn,0)}}],
+      if(!a)return $('#ap-e').textContent='Parol notoʻgʻri',false;
+      return pwCheck(a,v('ap-p')).then(ok=>{if(!ok)return $('#ap-e').textContent='Parol notoʻgʻri',false;
+      ui.elev=Date.now()+5*MIN;addLog('warn',`Admin ruxsati bilan: ${label} — ${me().name} (tasdiqladi: ${a.name})`);setTimeout(fn,0)})}}],
     onMount:ov=>$('#ap-p',ov).addEventListener('keydown',e=>{if(e.key==='Enter')$('.dlg-f .pri',ov).click()})});
 }
+/* ---------- Operator parollari: argon2id (Klub Pult Server) yoki PBKDF2 (brauzer) ---------- */
+// Bazada parol emas, faqat hash saqlanadi. u.pass boʻsh — parolsiz foydalanuvchi.
+const pwIsHash=h=>/^\$argon2|^pbkdf2\$/.test(h||'');
+const PW_IT=310000,u8b64=u8=>btoa(String.fromCharCode(...u8)),b64u8=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function pbkdf2(pw,salt,it){const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveBits']);
+  return new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:it,hash:'SHA-256'},k,256))}
+async function pwHash(pw){if(!pw)return '';if(window.kpPw)return window.kpPw.hash(pw);
+  const salt=crypto.getRandomValues(new Uint8Array(16));return `pbkdf2$${PW_IT}$${u8b64(salt)}$${u8b64(await pbkdf2(pw,salt,PW_IT))}`}
+async function pwVerify(h,pw){
+  if(/^\$argon2/.test(h))return window.kpPw?!!(await window.kpPw.verify(h,pw)):false;
+  const m=/^pbkdf2\$(\d+)\$([^$]+)\$([^$]+)$/.exec(h);
+  if(m){const a=await pbkdf2(pw,b64u8(m[2]),+m[1]),b=b64u8(m[3]);let d=a.length^b.length;for(let i=0;i<a.length&&i<b.length;i++)d|=a[i]^b[i];return d===0}
+  return h===pw} // eski versiyadan qolgan ochiq parol — birinchi kirishda hash'ga oʻtadi
+// toʻgʻri boʻlsa true; eski format (ochiq yoki PBKDF2) boʻlsa argon2 ga yangilab qoʻyadi
+async function pwCheck(u,pw){const h=u.pass||'';if(!h)return !pw;
+  if(!(await pwVerify(h,pw)))return false;
+  if(window.kpPw&&!/^\$argon2/.test(h)){const n=await window.kpPw.hash(pw);if(u.pass===h){u.pass=n;save()}}
+  return true}
+// ochiq saqlangan parollarni (eski baza yoki backup) hash'ga oʻtkazish
+async function pwMigrate(){let ch=false;
+  for(const u of S.users||[]){const h=u.pass;if(!h||pwIsHash(h))continue;
+    const n=await pwHash(h);if(u.pass!==h)continue;
+    if(h==='admin'||h==='1111')u.defPw=true;u.pass=n;ch=true}
+  if(ch)save()}
 let popEl=null;
 const MI={hist:'<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
   edit:'<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 13l1-3 6.5-6.5 2 2L6 12z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
@@ -2296,7 +2325,7 @@ function setUsers(b){
   $$('[data-um]',b).forEach(x=>x.onclick=()=>{const u=S.users.find(y=>y.login===x.dataset.um),self=u.login===S.user,lastAdmin=u.role==='admin'&&S.users.filter(y=>y.role==='admin'&&y.active!==false).length<2;
     popMenu(x,[{icon:MI.edit,label:u.role==='admin'?'Tahrirlash (ism, rol)':'Tahrirlash va ruxsatlar',run:()=>userModal(u.login)},
       {icon:MI.key,label:u.pass?'Parolni oʻzgartirish':'Parol oʻrnatish',run:()=>userPwModal(u.login)},
-      ...(u.pass?[{icon:MI.key,label:'Parolni olib tashlash',disabled:u.role==='admin'&&!!S.users.find(y=>y.role!=='admin'&&y.pass),run:()=>confirmM('Parolni olib tashlash',`${esc(u.name)} parolsiz kiradigan boʻladi.`,()=>{u.pass='';addLog('warn',`Parol olib tashlandi: ${u.name} — ${me().name}`);commit()},'Olib tashlash')}]:[]),
+      ...(u.pass?[{icon:MI.key,label:'Parolni olib tashlash',disabled:u.role==='admin'&&!!S.users.find(y=>y.role!=='admin'&&y.pass),run:()=>confirmM('Parolni olib tashlash',`${esc(u.name)} parolsiz kiradigan boʻladi.`,()=>{u.pass='';delete u.defPw;addLog('warn',`Parol olib tashlandi: ${u.name} — ${me().name}`);commit()},'Olib tashlash')}]:[]),
       {icon:MI.lock,label:u.active===false?'Faollashtirish':'Bloklash',disabled:self||(u.active!==false&&lastAdmin),run:()=>{u.active=u.active===false;addLog('warn',`${u.active?'Faollashtirildi':'Bloklandi'}: ${u.name} — ${me().name}`);commit()}},
       '-',{icon:MI.del,label:'Oʻchirish',danger:true,disabled:self||lastAdmin,run:()=>confirmM('Foydalanuvchini oʻchirish',`${esc(u.name)} (${esc(u.login)}) oʻchirilsinmi? Jurnaldagi yozuvlar saqlanadi.`,()=>{S.users=S.users.filter(y=>y!==u);addLog('warn',`Foydalanuvchi oʻchirildi: ${u.name} — ${me().name}`);commit()},'Oʻchirish')}])});
 }
@@ -2313,15 +2342,16 @@ function userModal(login){
       if(!login&&S.users.some(x=>x.login===l))return e.textContent='Bu login band',false;
       if(login&&u.role==='admin'&&r!=='admin'&&S.users.filter(x=>x.role==='admin').length<2)return e.textContent='Oxirgi administratorning rolini oʻzgartirib boʻlmaydi',false;
       const perms={};$$('[data-up]',ov).forEach(x=>perms[x.dataset.up]=x.checked);
-      if(login){u.name=n;u.role=r;u.perms=perms;addLog('info',`Foydalanuvchi oʻzgartirildi: ${n} — ${me().name}`)}
-      else{S.users.push({login:l,name:n,role:r,pass:v('us-p'),active:true,perms});addLog('info',`Yangi foydalanuvchi: ${n} (${r==='admin'?'administrator':'operator'}) — ${me().name}`)}
-      commit();toast('Saqlandi')}}],
+      if(login){u.name=n;u.role=r;u.perms=perms;addLog('info',`Foydalanuvchi oʻzgartirildi: ${n} — ${me().name}`);commit();toast('Saqlandi');return}
+      return pwHash(v('us-p')).then(h=>{if(S.users.some(x=>x.login===l))return e.textContent='Bu login band',false;
+        S.users.push({login:l,name:n,role:r,pass:h,active:true,perms});addLog('info',`Yangi foydalanuvchi: ${n} (${r==='admin'?'administrator':'operator'}) — ${me().name}`);
+        commit();toast('Saqlandi')})}}],
     onMount:ov=>{const t=()=>{$('#us-pw',ov).hidden=v('us-r')==='admin'};$('#us-r',ov).onchange=t;t()}});
 }
 function userPwModal(login){const u=S.users.find(x=>x.login===login);
   modal({title:`${u.name} — parol`,body:`<div class="frm"><label>Yangi parol<input id="up-1" type="password" autocomplete="new-password"></label><label>Parolni takrorlang<input id="up-2" type="password" autocomplete="new-password"></label><div class="err" id="up-e"></div></div>`,
     actions:[{label:'Bekor qilish'},{label:'Saqlash',cls:'dark',run:()=>{const a=v('up-1');if(!a)return $('#up-e').textContent='Parolni kiriting',false;if(a!==v('up-2'))return $('#up-e').textContent='Parollar mos kelmadi',false;
-      u.pass=a;addLog('info',`Parol oʻrnatildi: ${u.name} — ${me().name}`);commit();toast('Parol saqlandi')}}]});
+      return pwHash(a).then(h=>{u.pass=h;delete u.defPw;addLog('info',`Parol oʻrnatildi: ${u.name} — ${me().name}`);commit();toast('Parol saqlandi')})}}]});
 }
 
 /* ---------- Chegirmalar: qarz toʻlovida ---------- */
@@ -2616,11 +2646,12 @@ function klLogin(p,login,pass){
 function loginModal(start){
   const us=S.users.filter(u=>u.active!==false);
   const def=us.find(u=>u.login===S.user)||us[0];
-  const old=S.users.some(u=>u.pass==='admin'||u.pass==='1111');
+  const old=S.users.some(u=>u.defPw||u.pass==='admin'||u.pass==='1111');
   modal({title:start?`${S.settings.name} — kirish`:'Foydalanuvchini almashtirish',locked:!!start,body:`<div class="frm"><label>Foydalanuvchi<select id="lg-u">${us.map(u=>`<option value="${esc(u.login)}"${u===def?' selected':''}>${esc(u.name)} (${u.role==='admin'?'administrator':'operator'})</option>`).join('')}</select></label>
     <label id="lg-pw">Parol<input id="lg-p" type="password" autocomplete="off"></label>${old?'<div class="note">Prototipdagi boshlangʻich parollar: admin — <b>admin</b>, operator — <b>1111</b></div>':''}<div class="err" id="lg-e"></div></div>`,
-    actions:[...(start?[]:[{label:'Bekor qilish'}]),{label:'Kirish',cls:'pri',run:()=>{const u=us.find(x=>x.login===v('lg-u'));if(!u)return false;if((u.pass||'')!==(u.pass?v('lg-p'):''))return $('#lg-e').textContent='Parol notoʻgʻri',false;
-      S.user=u.login;ui.elev=0;addLog('info',`Tizimga kirdi: ${u.name}`);if(!viewOk(ui.view))ui.view='zal';commit();toast(`Xush kelibsiz, ${u.name}`)}}],
+    actions:[...(start?[]:[{label:'Bekor qilish'}]),{label:'Kirish',cls:'pri',run:()=>{const u=us.find(x=>x.login===v('lg-u'));if(!u)return false;
+      return pwCheck(u,u.pass?v('lg-p'):'').then(ok=>{if(!ok)return $('#lg-e').textContent='Parol notoʻgʻri',false;
+      S.user=u.login;ui.elev=0;addLog('info',`Tizimga kirdi: ${u.name}`);if(!viewOk(ui.view))ui.view='zal';commit();toast(`Xush kelibsiz, ${u.name}`)})}}],
     onMount:ov=>{const t=()=>{const u=us.find(x=>x.login===v('lg-u'));$('#lg-pw',ov).hidden=!(u&&u.pass)};$('#lg-u',ov).onchange=t;t();
       $('#lg-p',ov).addEventListener('keydown',e=>{if(e.key==='Enter')$('.dlg-f .pri',ov).click()})}});
 }

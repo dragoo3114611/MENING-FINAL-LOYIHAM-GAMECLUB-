@@ -3,7 +3,9 @@
   "productName": "Klub Pult",
   "version": "1.0.0",
   "description": "Kompyuter klubi boshqaruv paneli va server",
-  "author": "Klub Pult",
+  "author": "DUST2 GAMEZONE",
+  "license": "UNLICENSED",
+  "private": true,
   "main": "main.js",
   "scripts": {
     "prepare-app": "node -e \"require('fs').copyFileSync('../index.html','index.html')\"",
@@ -14,6 +16,7 @@
   "build": {
     "appId": "uz.klubpult.server",
     "productName": "Klub Pult",
+    "copyright": "Copyright © 2026 DUST2 GAMEZONE. Barcha huquqlar himoyalangan.",
     "files": [
       "main.js",
       "preload.js",
@@ -45,7 +48,8 @@
     "asarUnpack": [
       "**/node_modules/better-sqlite3/**",
       "**/node_modules/bindings/**",
-      "**/node_modules/file-uri-to-path/**"
+      "**/node_modules/file-uri-to-path/**",
+      "**/node_modules/@node-rs/**"
     ],
     "npmRebuild": true
   },
@@ -55,6 +59,7 @@
     "electron-builder": "^25.1.8"
   },
   "dependencies": {
+    "@node-rs/argon2": "^2.2.1",
     "better-sqlite3": "^11.10.0",
     "ws": "^8.21.3"
   }
