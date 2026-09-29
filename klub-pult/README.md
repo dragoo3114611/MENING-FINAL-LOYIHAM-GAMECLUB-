@@ -65,6 +65,9 @@ xabarlar konverti `{v,type,id,ts,payload}`.
 - GitHub Actions: «Windows exe» workflow exe fayllarni yigʻib, *Artifacts* ga qoʻyadi.
 
 ## Litsenziya (kalit)
+> **Hozircha oʻchiq** (`admin/license.js` → `ENABLED = false`): dastur cheklovsiz ishlaydi, Litsenziya boʻlimi koʻrinmaydi.
+> Sotishni boshlaganda `true` qilib qayta yigʻiladi.
+
 - **Kalitsiz:** oʻrnatilgan kundan boshlab **5 kun** sinov, eng koʻpi **5 ta** klient kompyuter juftlanadi.
   Muddat tugagach server ochilmaydi va dastur faqat kalit kiritish oynasini koʻrsatadi.
 - **Kalit** muallifning shaxsiy Ed25519 kaliti bilan imzolanadi va bitta admin kompyuterga bogʻlanadi

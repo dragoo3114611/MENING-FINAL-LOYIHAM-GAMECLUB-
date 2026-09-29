@@ -2047,11 +2047,12 @@ function vTariffs(m){
 const SSEC=[['pcs','Kompyuterlar'],['lock','Qulf ekrani'],['klub','Klub'],['users','Foydalanuvchilar va huquqlar',1],['ui','Server interfeysi'],['data','Backup',1],['clean','Maʼlumotlarni tozalash',1],['lic','Litsenziya']];
 function vSettings(m){
   if(!can('sozlamalar'))return vZal(m);
-  let sec=SSEC.find(x=>x[0]===ui.setSec)||SSEC[0];
+  const SS=SSEC.filter(x=>x[0]!=='lic'||(lic&&!lic.off)); // litsenziya oʻchiq boʻlsa boʻlim koʻrinmaydi
+  let sec=SS.find(x=>x[0]===ui.setSec)||SS[0];
   if(sec[2]&&!adminish())sec=SSEC[0];
   ui.setSec=sec[0];
   m.innerHTML=`<div class="page"><div class="ph"><h1>Sozlamalar</h1></div><div class="set">
-    <nav class="set-nav box" aria-label="Sozlamalar boʻlimlari">${SSEC.map(([k,l,a])=>`<button type="button" data-ss="${k}" class="${ui.setSec===k?'on':''}"${a&&!adminish()?' data-lock="1" title="Administrator paroli soʻraladi"':''}>${l}</button>`).join('')}</nav>
+    <nav class="set-nav box" aria-label="Sozlamalar boʻlimlari">${SS.map(([k,l,a])=>`<button type="button" data-ss="${k}" class="${ui.setSec===k?'on':''}"${a&&!adminish()?' data-lock="1" title="Administrator paroli soʻraladi"':''}>${l}</button>`).join('')}</nav>
     <div class="set-body" id="setb"></div></div></div>`;
   $$('[data-ss]',m).forEach(b=>b.onclick=()=>{const g=()=>{ui.setSec=b.dataset.ss;vSettings(m)};b.dataset.lock?guard(null,'Sozlamalar › '+b.textContent,g):g()});
   ({pcs:setPcs,lock:setLock,klub:setKlub,users:setUsers,disc:setDisc,tarif:setTarif,ui:setUi,data:setData,clean:setClean,lic:setLic}[ui.setSec])($('#setb'));

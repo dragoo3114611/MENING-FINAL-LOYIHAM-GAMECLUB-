@@ -13,6 +13,8 @@ const { execFileSync } = require('child_process');
 const PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEANLKLjGPNi/HuY1O8x0XRfen7H695wtk/vRDtETL+dlM=
 -----END PUBLIC KEY-----`;
+// Hozircha oʻchiq: dastur cheklovsiz ishlaydi. Sotishni boshlaganda true qilib, qayta yigʻing.
+const ENABLED = false;
 const TRIAL_DAYS = 5, TRIAL_PCS = 5, DAY = 864e5;
 const REG_KEY = 'HKCU\\Software\\KlubPult';
 
@@ -96,6 +98,7 @@ const keyFile = () => path.join(dir, 'license.key');
 function readKey() { try { return parseKey(fs.readFileSync(keyFile(), 'utf8')); } catch (e) { return null; } }
 
 function status() {
+  if (!ENABLED) return { state: 'licensed', off: true, machine: '', name: '', maxPcs: 0, expires: 0 };
   const now = Date.now(), machine = machineCode();
   const tr = trial(now);
   const clockBack = now + DAY < tr.s; // soat bir kundan koʻproq orqaga surilgan
@@ -113,6 +116,7 @@ function status() {
 }
 
 function activate(key) {
+  if (!ENABLED) return { ok: true, status: status() };
   const r = parseKey(key);
   if (r.err) return { ok: false, err: r.err };
   if (r.p.e && Date.now() > r.p.e) return { ok: false, err: 'Kalit muddati tugagan' };
@@ -120,4 +124,4 @@ function activate(key) {
   return { ok: true, status: status() };
 }
 
-module.exports = { init, status, activate, machineCode, parseKey, TRIAL_DAYS, TRIAL_PCS };
+module.exports = { ENABLED, init, status, activate, machineCode, parseKey, TRIAL_DAYS, TRIAL_PCS };
