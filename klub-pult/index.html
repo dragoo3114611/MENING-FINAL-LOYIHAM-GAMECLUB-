@@ -507,14 +507,20 @@ kbd{font:600 12px "JetBrains Mono",ui-monospace,monospace;border:1px solid var(-
 .dlg-h .mx+.x{margin-left:4px}
 .dlg.xl .dlg-b>.pbox{flex:1;min-height:120px;display:flex;flex-direction:column}
 .pbox .tbl{flex:1;overflow:auto}
-table.pt thead th{position:sticky;top:0;z-index:1}
+table.pt thead{position:sticky;top:0;z-index:1}
+table.pt thead th{position:relative}
 table.pt th,table.pt td{padding:7px 9px}
 table.pt td.nm{max-width:280px}
 @media(max-width:900px){table.pt td.nm{max-width:150px}table.pt th,table.pt td{padding:7px 6px}}
 table.pt td.nm b,table.pt td.nm small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
 table.pt td.act .btn+.btn{margin-left:6px}
-table.pt th .cr{position:absolute;top:0;right:-4px;width:9px;height:100%;cursor:col-resize;z-index:2;touch-action:none}
-table.pt th .cr::after{content:'';position:absolute;left:4px;top:25%;height:50%;border-left:1px solid var(--line2)}
+table.pt th .sk{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:3px;max-width:100%;min-width:0;vertical-align:middle}
+table.pt th .sk span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+table.pt th .sk:hover,table.pt th[aria-sort=ascending] .sk,table.pt th[aria-sort=descending] .sk{color:var(--text)}
+table.pt th .sk:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+table.pt th .sk i{font-style:normal;font-size:10px;flex:none}
+table.pt th .cr{position:absolute;top:0;right:0;width:9px;height:100%;cursor:col-resize;z-index:2;touch-action:none}
+table.pt th .cr::after{content:'';position:absolute;right:0;top:25%;height:50%;border-left:1px solid var(--line2)}
 table.pt th .cr:hover::after,table.pt th .cr.on::after{border-left:2px solid var(--accent);top:0;height:100%}
 table.pt.rsz{table-layout:fixed;min-width:100%}
 table.pt.rsz td.nm{max-width:none}
@@ -647,8 +653,8 @@ function rng(seed){return ()=>{seed=(seed*1664525+1013904223)%4294967296;return 
 let S=null;
 const ui={view:'zal',zalMode:'table',sel:new Set(),last:null,lc:null,stf:'all',pcq:'',sort:{k:'n',d:1},
   logLimit:150,logF:'all',logQ:'',logSel:null,logH:220,cq:'',dq:'',dAll:false,rp:null,pm:null};
-try{const u=JSON.parse(localStorage.getItem(LS_UI)||'{}');if(u.zalMode)ui.zalMode=u.zalMode;if(u.logH)ui.logH=u.logH;if(Array.isArray(u.procCols))ui.procCols=u.procCols;}catch(e){}
-function saveUI(){try{localStorage.setItem(LS_UI,JSON.stringify({zalMode:ui.zalMode,logH:ui.logH,procCols:ui.procCols}))}catch(e){}}
+try{const u=JSON.parse(localStorage.getItem(LS_UI)||'{}');if(u.zalMode)ui.zalMode=u.zalMode;if(u.logH)ui.logH=u.logH;if(Array.isArray(u.procCols))ui.procCols=u.procCols;if(u.procSort&&u.procSort.k)ui.procSort=u.procSort;}catch(e){}
+function saveUI(){try{localStorage.setItem(LS_UI,JSON.stringify({zalMode:ui.zalMode,logH:ui.logH,procCols:ui.procCols,procSort:ui.procSort}))}catch(e){}}
 function save(){const j=JSON.stringify(S);try{localStorage.setItem(LS,j)}catch(e){}try{if(window.kpDb)window.kpDb.save(j)}catch(e){}if(typeof bkSchedule==='function')bkSchedule()}
 function load(){try{const j=(window.kpInitState!=null)?window.kpInitState:localStorage.getItem(LS);if(j){const s=JSON.parse(j);if(s&&s.v===1)return s}}catch(e){}return null}
 
@@ -1175,27 +1181,43 @@ function procsModal(sel){
   let cur=list.find(p=>procList(p).some(x=>!x.sys))||list[0],draw=()=>{};
   modal({title:list.length>1?`Jarayonlar — ${list.length} ta kompyuter`:`Jarayonlar — PC ${cur.n}`,xl:true,
     body:`${list.length>1?'<div class="pchips pmt" id="pm-t" role="tablist" aria-label="Kompyuter"></div>':''}<div id="pm-h"></div>
-      <div class="box pbox" style="margin-top:12px"><div class="tbl"><table class="t pt"><thead><tr><th>Nomi</th><th>Holat</th><th class="r">CPU</th><th class="r">Xotira</th><th class="r">Disk</th><th class="r">Tarmoq</th><th class="r">Amallar</th></tr></thead><tbody id="pm-b"></tbody></table></div></div>
-      <p class="note" style="margin:10px 0 0">«Saqlansin» belgilangan ilova tozalashda yopilmaydi — bu hamma kompyuterlarga amal qiladi. Tizim jarayonlari hech qachon yopilmaydi. Maʼlumot har 2 soniyada yangilanadi.</p>`,
+      <div class="box pbox" style="margin-top:12px"><div class="tbl"><table class="t pt"><thead><tr>${PROC_COLS.map(([k,l,c])=>`<th${c?` class="${c}"`:''} data-sk="${k}"><button type="button" class="sk"${c?' style="flex-direction:row-reverse"':''}><span>${l}</span><i></i></button></th>`).join('')}<th class="r">Amallar</th></tr></thead><tbody id="pm-b"></tbody></table></div></div>
+      <p class="note" style="margin:10px 0 0">«Saqlansin» belgilangan ilova tozalashda yopilmaydi — bu hamma kompyuterlarga amal qiladi. Tizim jarayonlari hech qachon yopilmaydi. Maʼlumot har 2 soniyada yangilanadi. Ustun nomini bossangiz, shu ustun boʻyicha saralanadi; sichqoncha roʻyxat ustida turganda qatorlar joyidan siljimaydi.</p>`,
     actions:[{label:'Yopish'},...(list.length>1?[{label:`Hammasida tozalash (${list.length} ta PC)`,cls:'dng',run:()=>{guard('procs','Jarayonlarni tozalash',()=>{cleanProcs(list);draw()});return false}}]:[]),
       {label:'Tozalash',cls:'dngf',run:()=>{guard('procs','Jarayonlarni tozalash',()=>{cleanProcs([cur]);draw()});return false}}],
-    onMount:ov=>{let iv=0;draw=()=>{if(!ov.isConnected)return clearInterval(iv);
+    onMount:ov=>{let iv=0,hold=false,order=[];draw=()=>{if(!ov.isConnected)return clearInterval(iv);
       if(NET&&!ov.dataset.q||NET&&Date.now()-(+ov.dataset.q)>1500){ov.dataset.q=Date.now();list.forEach(p=>netSend(p.n,'process.list'))}
       const kp=keepList(),l=procList(cur),j=NET?x=>x:x=>Math.max(0,x*(0.85+Math.random()*0.3));let cpu=0,mem=0;
       const rows=l.map(x=>{const c=j(x.cpu),mm=j(x.mem);cpu+=c;mem+=mm;return {x,c,mm,d:x.game?j(3):j(0.1),nt:x.game?j(4):/Chrome|Discord|Telegram/.test(x.name)?j(1.2):0}});
+      const sk=ui.procSort&&PROC_SORT[ui.procSort.k]?ui.procSort:{k:'kind',d:1},rk=r=>r.x.pid?'p'+r.x.pid:r.x.name+'|'+r.x.exe;
+      rows.sort((a,b)=>procCmp(a,b,sk));
+      /* sichqoncha roʻyxat ustida — qatorlar oldingi joyida qoladi (notoʻgʻri ilovani bosib yubormaslik uchun) */
+      if(hold&&order.length){const ix=new Map(order.map((k,i)=>[k,i])),at=r=>ix.has(rk(r))?ix.get(rk(r)):1e9;rows.sort((a,b)=>at(a)-at(b))}
+      order=rows.map(rk);
+      $$('th[data-sk]',ov).forEach(th=>{const on=th.dataset.sk===sk.k;th.setAttribute('aria-sort',on?(sk.d>0?'ascending':'descending'):'none');$('i',th).textContent=on?(sk.d>0?'▲':'▼'):''});
       const t=$('#pm-t',ov);if(t)t.innerHTML=list.map(p=>`<button type="button" role="tab" aria-selected="${p===cur}" class="${p===cur?'on':''}" data-pc="${p.n}">PC ${p.n} · ${procList(p).filter(x=>!x.sys).length}</button>`).join('');
       $('#pm-h',ov).innerHTML=`<div class="kpis"><div class="kpi"><div class="l">PC ${cur.n} · CPU</div><div class="v">${Math.min(99,Math.round(cpu))}%</div></div><div class="kpi"><div class="l">Xotira</div><div class="v">${(mem/1024).toFixed(1)} GB</div><div class="s">${NET?(online(cur)?'ochiq ilovalar':'klient ulanmagan'):'16 GB dan'}</div></div>
         <div class="kpi"><div class="l">Ochiq ilovalar</div><div class="v">${l.filter(x=>!x.sys).length}</div><div class="s">${cur.session?esc(who(cur.session)):'seans yoʻq — qulf ekrani'}</div></div></div>`;
       $('#pm-b',ov).innerHTML=rows.map(r=>{const k=kp.includes(r.x.name);return `<tr><td class="nm" title="${esc(r.x.name)} — ${esc(r.x.exe)}"><b>${esc(r.x.name)}</b><small>${esc(r.x.exe)}</small></td><td>${r.x.sys?'<span class="pill p-mut">Tizim</span>':r.x.game?'<span class="pill p-busy">Oʻyin</span>':'<span class="pill p-acc">Ilova</span>'}</td>
         <td class="r">${r.c.toFixed(1)}%</td><td class="r">${num(r.mm)} MB</td><td class="r">${r.d.toFixed(1)} MB/s</td><td class="r">${r.nt.toFixed(1)} Mbit/s</td>
         <td class="act">${r.x.sys?'<span class="muted">tizim</span>':`<button class="btn sm keep${k?' on':''}" type="button" data-keep="${esc(r.x.name)}" aria-pressed="${k}">${MI.lock} ${k?'Saqlanadi':'Saqlansin'}</button><button class="btn sm dng" type="button" data-kill="${esc(r.x.name)}">Tugatish</button>`}</td></tr>`}).join('')||`<tr><td colspan="7" class="empty">${NET?(online(cur)?(net.procs[cur.n]?'Ochiq ilova yoʻq':'Roʻyxat olinmoqda…'):'Klient ulanmagan'):'Kompyuter oʻchiq'}</td></tr>`;
-      $$('#pm-t [data-pc]',ov).forEach(b=>b.onclick=()=>{cur=pcBy(+b.dataset.pc);draw()});
+      $$('#pm-t [data-pc]',ov).forEach(b=>b.onclick=()=>{cur=pcBy(+b.dataset.pc);order=[];draw()});
       $$('[data-keep]',ov).forEach(b=>b.onclick=()=>{const nm=b.dataset.keep,kl=keepList(),i=kl.indexOf(nm);i>=0?kl.splice(i,1):kl.push(nm);
         addLog('info',`${nm}: ${i>=0?'tozalashda yopiladigan boʻldi':'tozalashda saqlanadigan qilib belgilandi'} — ${me().name}`);save();draw()});
       $$('[data-kill]',ov).forEach(b=>b.onclick=()=>{const nm=b.dataset.kill;guard('procs','Jarayonni tugatish',()=>{const st=NET?(net.procs[cur.n]||{list:[]}):procs[cur.n],x=st.list.find(y=>y.name===nm);st.list=st.list.filter(y=>y.name!==nm);if(NET&&x&&x.pid)netSend(cur.n,'process.kill',{pids:[x.pid]});
         addLog('info',`Jarayon tugatildi PC ${cur.n}: ${nm}${x?` (${x.exe})`:''} — ${me().name}`);save();draw();if(ui.view==='zal')renderGrid()})});
-    };colResize($('table.pt',ov));draw();iv=setInterval(draw,2000)}});
+    };colResize($('table.pt',ov));
+    const tb=$('#pm-b',ov);tb.addEventListener('pointerenter',e=>{if(e.pointerType==='mouse')hold=true});tb.addEventListener('pointerleave',()=>hold=false);
+    $('table.pt thead',ov).addEventListener('click',e=>{const bt=e.target.closest('.sk');if(!bt)return;const th=bt.closest('th[data-sk]');
+      const k=th.dataset.sk,s=ui.procSort&&PROC_SORT[ui.procSort.k]?ui.procSort:{k:'kind',d:1};ui.procSort=s.k===k?{k,d:-s.d}:{k,d:PROC_SORT[k].num?-1:1};saveUI();order=[];draw()});
+    draw();iv=setInterval(draw,2000)}});
 }
+/* Jarayonlar tartibi: standart — Oʻyin, Ilova, Tizim, har biri ichida nomi boʻyicha.
+   Raqamlar koʻrsatilgan aniqlikda solishtiriladi, teng boʻlsa nomi boʻyicha — shunda 0.2/0.4% tebranishi qatorlarni siljitmaydi. */
+const PROC_COLS=[['name','Nomi',''],['kind','Holat',''],['cpu','CPU','r'],['mem','Xotira','r'],['disk','Disk','r'],['net','Tarmoq','r']];
+const PROC_SORT={name:{},kind:{v:r=>r.x.game?0:r.x.sys?2:1},cpu:{num:1,v:r=>+r.c.toFixed(1)},mem:{num:1,v:r=>Math.round(r.mm)},disk:{num:1,v:r=>+r.d.toFixed(1)},net:{num:1,v:r=>+r.nt.toFixed(1)}};
+function procCmp(a,b,sk){const byName=a.x.name.localeCompare(b.x.name,'uz',{sensitivity:'base'})||a.x.exe.localeCompare(b.x.exe)||(a.x.pid||0)-(b.x.pid||0);
+  if(sk.k==='name')return byName*sk.d;const f=PROC_SORT[sk.k].v,va=f(a),vb=f(b);return (va<vb?-1:va>vb?1:0)*sk.d||byName}
 /* Ustun kengligini sichqoncha bilan oʻzgartirish; ikki marta bosish — asl holiga */
 function colResize(tb){const ths=[...tb.tHead.rows[0].cells],n=ths.length-1;/* oxirgi ustun (Amallar) qolgan joyni oladi */
   const apply=w=>{if(!w||w.length!==n){tb.classList.remove('rsz');tb.style.minWidth='';ths.forEach(th=>th.style.width='');return}
