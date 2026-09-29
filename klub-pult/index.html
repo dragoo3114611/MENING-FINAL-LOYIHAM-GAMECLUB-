@@ -532,6 +532,7 @@ table.pt.rsz td,table.pt.rsz th{overflow:hidden;text-overflow:ellipsis}
 .dlg-b{padding:16px;overflow:auto}
 .dlg-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--line2);flex-wrap:wrap}
 .dlg-f .btn+.btn{margin-left:0}
+.dlg-f .btn.l{margin-right:auto}
 .frm{display:grid;gap:12px}
 .frm label{display:grid;gap:4px;font-size:12.5px;color:var(--muted);font-weight:500}
 .frm input,.frm select,.frm textarea{padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--panel2);width:100%}
@@ -607,8 +608,9 @@ const PERMS=[['kassa','Kassa summasini koʻrish','Smena va hisobotdagi «Kassada
   ['sozlamalar','Sozlamalarni ochish','Kompyuterlar, qulf ekrani, interfeys. Foydalanuvchilar, backup va tozalash baribir admin uchun','Sozlamalar'],
   ['tarifEdit','Tariflarni qoʻshish va oʻzgartirish','','Tariflar'],['prodEdit','Bar mahsulotini qoʻshish va tahrirlash','','Mahsulot'],
   ['prodDelete','Bar mahsulotini oʻchirish','','Mahsulot oʻchirish'],['debtDelete','Qarz yozuvlarini tahrirlash va oʻchirish','','Qarz tahriri'],
+  ['clientBal','Mijoz balansini qoʻlda tuzatish','Mijozni tahrirlash oynasida','Balans tuzatish'],['clientDelete','Mijozni oʻchirish','','Mijoz oʻchirish'],
   ['pcPower','Kompyuterlarni oʻchirish, yoqish, qayta yuklash','','Quvvat'],['procs','Jarayonlarni tugatish va tozalash','','Jarayonlar']];
-const DEF_PERMS={kassa:true,chiqim:true,chegirma:true,hisobot:true,foyda:false,sozlamalar:false,tarifEdit:false,prodEdit:true,prodDelete:false,debtDelete:false,pcPower:true,procs:true};
+const DEF_PERMS={kassa:true,chiqim:true,chegirma:true,hisobot:true,foyda:false,sozlamalar:false,tarifEdit:false,prodEdit:true,prodDelete:false,debtDelete:false,clientBal:false,clientDelete:false,pcPower:true,procs:true};
 const DEF_GAMES=[{id:'gm1',name:'Counter-Strike 2',cat:'Shooter',path:'C:\\Games\\CS2\\cs2.exe',color:'#e8a33d'},{id:'gm2',name:'Dota 2',cat:'MOBA',path:'C:\\Games\\Dota 2\\dota2.exe',color:'#c23c2a'},
   {id:'gm3',name:'PUBG: Battlegrounds',cat:'Battle royale',path:'C:\\Games\\PUBG\\TslGame.exe',color:'#d9a441'},{id:'gm4',name:'Valorant',cat:'Shooter',path:'C:\\Riot Games\\VALORANT\\VALORANT.exe',color:'#ff4655'},
   {id:'gm5',name:'EA SPORTS FC 25',cat:'Sport',path:'C:\\Games\\FC25\\FC25.exe',color:'#1fc27a'},{id:'gm6',name:'GTA V',cat:'Action',path:'C:\\Games\\GTAV\\PlayGTAV.exe',color:'#5aa0e6'},
@@ -1355,7 +1357,7 @@ function startModal(n,more){
   if(!ts.length)return toast(`${grpName(pcBy(n).group)} guruhi uchun narxi kiritilgan tarif yoʻq — Tariflar boʻlimini tekshiring`,'err');
   const busyClients=new Set(S.pcs.filter(p=>p.session&&p.session.clientId).map(p=>p.session.clientId));
   const body=`<div class="frm">
-    <div class="row2"><label>Mijoz<select id="st-c"><option value="">Mehmon (akkauntsiz)</option>${S.clients.map(c=>`<option value="${c.id}"${busyClients.has(c.id)||multi?' disabled':''}>${esc(c.name)} · @${esc(c.login)} · ${som(c.balance)}${busyClients.has(c.id)?' (oʻynamoqda)':''}</option>`).join('')}</select></label>
+    <div class="row2"><label>Mijoz<select id="st-c"><option value="">Mehmon (akkauntsiz)</option>${S.clients.map(c=>`<option value="${c.id}"${busyClients.has(c.id)||c.blocked||multi?' disabled':''}>${esc(c.name)} · @${esc(c.login)} · ${som(c.balance)}${busyClients.has(c.id)?' (oʻynamoqda)':c.blocked?' (bloklangan)':''}</option>`).join('')}</select></label>
     <label>Toʻlov turi<select id="st-m"><option value="pre">Oldindan toʻlov</option><option value="post">Keyin toʻlov</option><option value="balance">Balansdan</option></select></label></div>
     <label id="st-gw">Mehmon ismi (ixtiyoriy)<input id="st-g" placeholder="Masalan: Ali"></label>
     <label>Tarif<select id="st-t">${ts.map(t=>{const ok=applies(t,now);return `<option value="${t.id}"${ok?'':' disabled'}>${esc(t.name)} — ${t.type==='hour'?som(t.price)+' / soat':durTxt(t.minutes)+' · '+som(t.price)}${ok?'':' (hozir amal qilmaydi)'}</option>`}).join('')}</select></label>
@@ -1625,19 +1627,66 @@ function barStock(b,m){
 }
 
 /* =================== MIJOZLAR =================== */
+function clientStats(id){let visits=0,last=0,spent=0;
+  for(const h of S.history)if(h.clientId===id){visits++;spent+=h.total;if(h.end>last)last=h.end}
+  const d=Object.values(debtors()).find(x=>x.clientId===id),pc=S.pcs.find(p=>p.session&&p.session.clientId===id);
+  return {visits,last,spent,debt:d&&d.left>0?d.left:0,pc:pc?pc.n:null}}
+const genPass=()=>{const a='abcdefghjkmnpqrstuvwxyz23456789',r=crypto.getRandomValues(new Uint8Array(6));return [...r].map(x=>a[x%a.length]).join('')};
 function clientModal(id){
-  const c=id?client(id):{name:'',phone:'+998 ',login:'',pass:''};
-  modal({title:id?'Mijozni tahrirlash':'Yangi mijoz',body:`<div class="frm"><label>Ism familiya<input id="cl-n" value="${esc(c.name)}"></label><label>Telefon<input id="cl-p" value="${esc(c.phone)}" inputmode="tel"></label>
-    <div class="row2"><label>Login (kompyuterga kirish uchun)<input id="cl-l" value="${esc(c.login)}" autocomplete="off"></label><label>Parol<input id="cl-s" type="password" autocomplete="new-password" placeholder="${id&&c.pass?'Oʻzgartirmaslik uchun boʻsh qoldiring':''}"></label></div>
+  const c=id?client(id):{name:'',phone:'+998 ',login:'',pass:'',balance:0,note:''};
+  const st=id?clientStats(id):null,bal0=c.balance;
+  const info=id?`<div class="sumbox"><div class="ln"><span>Balans</span><b>${som(c.balance)}</b></div>
+      <div class="ln"><span>Tashriflar / jami sarflagan</span><span>${st.visits} ta · ${som(st.spent)}</span></div>
+      ${st.debt?`<div class="ln" style="color:var(--off)"><span>Qarz</span><b>${som(st.debt)}</b></div>`:''}
+      <div class="ln muted"><span>Roʻyxatdan oʻtgan</span><span>${c.createdAt?dstr(c.createdAt):'—'}</span></div>
+      <div class="ln muted"><span>Oxirgi tashrif</span><span>${st.last?dstr(st.last)+' '+hm(st.last):'—'}</span></div>
+      ${st.pc?`<div class="ln" style="color:var(--busy)"><span>Hozir</span><b>PC ${st.pc} da oʻynamoqda</b></div>`:''}</div>`:'';
+  modal({title:id?`Mijozni tahrirlash — ${c.name}`:'Yangi mijoz',wide:!!id,body:`<div class="frm">${info}
+    <div class="row2"><label>Ism familiya<input id="cl-n" value="${esc(c.name)}"></label><label>Telefon<input id="cl-p" value="${esc(c.phone)}" inputmode="tel"></label></div>
+    <div class="row2"><label>Login (kompyuterga kirish uchun)<input id="cl-l" value="${esc(c.login)}" autocomplete="off"></label>
+      <label>${id?`<span>Parol <span class="pill ${c.pass?'p-free':'p-busy'}">${c.pass?'oʻrnatilgan':'yoʻq'}</span></span>`:'Parol'}<input id="cl-s" type="password" autocomplete="new-password" placeholder="${id&&c.pass?'Oʻzgartirmaslik uchun boʻsh qoldiring':''}"></label></div>
+    <div class="row2"><label>Parolni takrorlang<input id="cl-s2" type="password" autocomplete="new-password"></label>
+      <div class="flabel">&nbsp;<div class="qk"><button class="btn sm" type="button" id="cl-g">Tasodifiy parol</button><label class="ck"><input type="checkbox" id="cl-sh">Koʻrsatish</label></div></div></div>
+    ${id?`<div class="row2"><label>Balans (tuzatish), soʻm<input id="cl-b" type="number" step="500" min="0" value="${c.balance}"></label><label>Tuzatish sababi<input id="cl-br" placeholder="Balans oʻzgarsa majburiy"></label></div>
+    <div class="note" style="margin-top:-6px">Pul olib toʻldirish uchun «Toʻldirish» tugmasi. Bu yerda faqat xato summa tuzatiladi — kassaga yozilmaydi, jurnalga yoziladi.</div>`:''}
+    <label>Izoh<textarea id="cl-o" rows="2" placeholder="Masalan: doimiy mijoz, faqat tunda keladi">${esc(c.note||'')}</textarea></label>
+    ${id?`<label class="ck"><input type="checkbox" id="cl-x"${c.blocked?' checked':''}>Akkauntni bloklash — kompyuterlarda login bilan kira olmaydi</label>`:''}
     <div class="note">Mijoz istalgan kompyuterda shu login va parol bilan kiradi, oʻyin vaqti balansidan yechiladi.</div><div class="err" id="cl-e"></div></div>`,
-    actions:[{label:'Bekor qilish'},{label:'Saqlash',cls:'pri',run:()=>{const n=v('cl-n').trim(),l=v('cl-l').trim().toLowerCase();
-      if(!n||!l)return $('#cl-e').textContent='Ism va login majburiy',false;
-      if(S.clients.some(x=>x.login===l&&x.id!==id))return $('#cl-e').textContent='Bu login band',false;
-      const pw=v('cl-s'),ph=v('cl-p').trim();
-      return (pw?pwHash(pw):Promise.resolve(null)).then(h=>{if(S.clients.some(x=>x.login===l&&x.id!==id))return $('#cl-e').textContent='Bu login band',false;
-        const o={name:n,phone:ph,login:l};if(h!=null)o.pass=h;else if(!id)o.pass='';
-        if(id)Object.assign(c,o);else{S.clients.push(Object.assign({id:'c'+uid(),balance:0,createdAt:Date.now()},o));addLog('info',`Yangi mijoz roʻyxatdan oʻtdi: ${n} (@${l})`)}commit();toast('Saqlandi')})}}]});
+    actions:[...(id?[{label:'Oʻchirish',cls:'dng l',run:()=>{setTimeout(()=>clientDelete(id),0)}},{label:'Toʻldirish',run:()=>{setTimeout(()=>topupModal(id),0)}},{label:'Tarix',run:()=>{setTimeout(()=>clientHistory(id),0)}}]:[]),
+      {label:'Bekor qilish'},{label:'Saqlash',cls:'pri',run:()=>{const n=v('cl-n').trim(),l=v('cl-l').trim().toLowerCase(),e=$('#cl-e');
+      if(!n||!l)return e.textContent='Ism va login majburiy',false;
+      if(/\s/.test(l))return e.textContent='Loginda boʻsh joy boʻlmasin',false;
+      if(S.clients.some(x=>x.login===l&&x.id!==id))return e.textContent='Bu login band',false;
+      const pw=v('cl-s'),ph=v('cl-p').trim(),note=v('cl-o').trim();
+      if(pw!==v('cl-s2'))return e.textContent='Parollar mos kelmadi',false;
+      const nb=id?Math.max(0,Math.round(vn('cl-b'))):0,br=id?v('cl-br').trim():'',balCh=id&&nb!==bal0;
+      if(balCh&&!br)return e.textContent='Balans oʻzgargan — tuzatish sababini yozing',false;
+      const blk=id?$('#cl-x').checked:false;
+      return (pw?pwHash(pw):Promise.resolve(null)).then(h=>{if(S.clients.some(x=>x.login===l&&x.id!==id))return e.textContent='Bu login band',false;
+        const o={name:n,phone:ph,login:l,note};if(h!=null)o.pass=h;else if(!id)o.pass='';
+        if(!id){S.clients.push(Object.assign({id:'c'+uid(),balance:0,createdAt:Date.now()},o));addLog('info',`Yangi mijoz roʻyxatdan oʻtdi: ${n} (@${l})`);commit();toast('Saqlandi');return}
+        const old=c.login;Object.assign(c,o);
+        if(old!==l)addLog('info',`Mijoz logini oʻzgartirildi: ${n} @${old} → @${l} — ${me().name}`);
+        if(h!=null)addLog('info',`Mijoz paroli oʻzgartirildi: ${n} — ${me().name}`);
+        if(blk!==!!c.blocked){if(blk)c.blocked=true;else delete c.blocked;addLog('warn',`Mijoz akkaunti ${blk?'bloklandi':'blokdan chiqarildi'}: ${n} — ${me().name}`)}
+        commit();
+        if(!balCh)return toast('Saqlandi');
+        const apply=()=>{const was=c.balance;c.balance=Math.max(0,was+nb-bal0);addLog('warn',`Balans tuzatildi: ${n} ${som(was)} → ${som(c.balance)} (${br}) — ${me().name}`);commit();toast('Saqlandi, balans tuzatildi')};
+        guard('clientBal','Mijoz balansini tuzatish',apply)})}}],
+    onMount:ov=>{const sh=$('#cl-sh',ov);sh.onchange=()=>{$('#cl-s',ov).type=$('#cl-s2',ov).type=sh.checked?'text':'password'};
+      $('#cl-g',ov).onclick=()=>{const p=genPass();$('#cl-s',ov).value=$('#cl-s2',ov).value=p;sh.checked=true;sh.onchange()}}});
 }
+function clientDelete(id){const c=client(id);if(!c)return;const st=clientStats(id);
+  if(st.pc)return toast(`${c.name} hozir PC ${st.pc} da oʻynamoqda — avval seansni yakunlang`,'err');
+  guard('clientDelete','Mijozni oʻchirish',()=>modal({title:`Mijozni oʻchirish — ${c.name}`,body:`<div class="frm"><p style="margin:0">${esc(c.name)} (@${esc(c.login)}) akkaunti oʻchiriladi. Seanslar tarixi va hisobotlar saqlanadi.</p>
+    ${c.balance>0?`<div class="info"><b>Balansida ${som(c.balance)} bor.</b> Oʻchirilsa, bu pul akkaunt bilan birga yoʻqoladi. Kerak boʻlsa, avval mijozga qaytarib bering va balansni 0 ga tuzating.</div>`:''}
+    ${st.debt?`<div class="info"><b>Qarzi bor: ${som(st.debt)}.</b> Qarz daftarida uning nomi bilan qoladi.</div>`:''}
+    <label>Tasdiqlash uchun loginni yozing<input id="cd-l" autocomplete="off" placeholder="${esc(c.login)}"></label><div class="err" id="cd-e"></div></div>`,
+    actions:[{label:'Bekor qilish'},{label:'Oʻchirish',cls:'dng',run:()=>{if(v('cd-l').trim().toLowerCase()!==c.login)return $('#cd-e').textContent='Login mos kelmadi',false;
+      S.history.forEach(h=>{if(h.clientId===id)h.cname=c.name});
+      S.debts.forEach(d=>{if(d.clientId===id){d.name=c.name;d.phone=d.phone||c.phone;d.clientId=null}});
+      const nk='n:'+c.name.trim().toLowerCase();S.debtPays.forEach(p=>{if(p.key==='c:'+id){p.key=nk;p.name=c.name;p.clientId=null}});
+      S.clients=S.clients.filter(x=>x.id!==id);addLog('warn',`Mijoz oʻchirildi: ${c.name} (@${c.login})${c.balance?`, balans ${som(c.balance)}`:''} — ${me().name}`);commit();toast('Mijoz oʻchirildi')}}]}))}
 function topupModal(id){
   const c=client(id);
   modal({title:`Balansni toʻldirish — ${c.name}`,body:`<div class="frm"><label>Summa (soʻm)<input id="tp-a" type="number" min="0" step="1000" value="50000"></label>
@@ -1663,8 +1712,8 @@ function vClients(m){
     S.history.forEach(h=>{if(h.clientId){last[h.clientId]=h.end;cnt[h.clientId]=(cnt[h.clientId]||0)+1}});
     Object.values(debtors()).forEach(x=>{if(x.clientId&&x.left>0)debt[x.clientId]=x.left});
     const playing={};S.pcs.forEach(p=>{if(p.session&&p.session.clientId)playing[p.session.clientId]=p.n});
-    const list=S.clients.filter(c=>!q||(c.name+' '+c.login+' '+c.phone).toLowerCase().includes(q)).sort((a,b)=>(sp[b.id]||0)-(sp[a.id]||0));
-    $('#ctb').innerHTML=list.map(c=>{return `<tr><td><b>${esc(c.name)}</b><small>@${esc(c.login)}${playing[c.id]?` · <span style="color:var(--busy)">PC ${playing[c.id]} da oʻynamoqda</span>`:''}</small></td><td>${esc(c.phone)}</td>
+    const list=S.clients.filter(c=>!q||(c.name+' '+c.login+' '+c.phone+' '+(c.note||'')).toLowerCase().includes(q)).sort((a,b)=>(sp[b.id]||0)-(sp[a.id]||0));
+    $('#ctb').innerHTML=list.map(c=>{return `<tr><td><b>${esc(c.name)}</b>${c.blocked?' <span class="pill p-off">bloklangan</span>':''}<small>@${esc(c.login)}${c.note?' · '+esc(c.note):''}${playing[c.id]?` · <span style="color:var(--busy)">PC ${playing[c.id]} da oʻynamoqda</span>`:''}</small></td><td>${esc(c.phone)}</td>
       <td class="r">${som(c.balance)}</td><td class="r">${cnt[c.id]||0}</td><td class="r">${som(sp[c.id]||0)}</td>
       <td class="r">${debt[c.id]?`<span class="pill p-off">${num(debt[c.id])}</span>`:''}</td><td>${last[c.id]?dshort(last[c.id]):'—'}</td>
       <td class="act"><button class="btn sm" type="button" data-tp="${c.id}">Toʻldirish</button><button class="btn sm" type="button" data-hs="${c.id}">Tarix</button><button class="btn sm" type="button" data-ed="${c.id}">Tahrirlash</button></td></tr>`}).join('')||'<tr><td colspan="8" class="empty">Mijoz topilmadi</td></tr>';
@@ -1969,7 +2018,7 @@ function vReport(m){
     <div class="box"><h2>${hourly?'Soatlar boʻyicha tushum':'Kunlik tushum'}<small><span class="legend" style="margin:0"><span><i style="background:var(--c1)"></i>Kompyuter</span><span><i style="background:var(--c2)"></i>Bar</span></span></small></h2><div class="boxb">${rows.length?stackChart(rows,['var(--c1)','var(--c2)'],compact):'<div class="empty">Bu davr hali boshlanmagan</div>'}</div></div>
     ${out.length?`<div class="box"><h2>Kassadan chiqimlar<small>${out.length} ta</small></h2><div class="tbl"><table class="t"><thead><tr><th>Sana</th><th>Turi</th><th>Izoh</th><th>Qayerdan</th><th class="r">Summa</th></tr></thead><tbody>${out.slice().sort((a,b)=>b.t-a.t).map(e=>`<tr><td>${dmy(e.t)}</td><td>${esc(e.cat)}</td><td class="muted">${esc(e.note)}</td><td>${METHODS[e.method]||'—'}</td><td class="r">${num(e.amount)}</td></tr>`).join('')}</tbody></table></div></div>`:''}
     <div class="box"><h2>Soatlar boʻyicha oʻrtacha bandlik<small>qaysi soatlarda zal toʻla</small></h2><div class="boxb">${stackChart(hrows,['var(--c3)'],x=>Math.round(x)+'%')}</div></div>
-    <div class="cols"><div class="box"><h2>Eng faol mijozlar</h2><div class="boxb">${top.length?top.map(([id,a])=>hbar(esc(client(id)?client(id).name:'—'),a,top[0][1],num(a))).join(''):'<div class="empty">Maʼlumot yoʻq</div>'}</div></div>
+    <div class="cols"><div class="box"><h2>Eng faol mijozlar</h2><div class="boxb">${top.length?top.map(([id,a])=>hbar(esc(client(id)?client(id).name:((H.find(h=>h.clientId===id)||{}).cname||'—')),a,top[0][1],num(a))).join(''):'<div class="empty">Maʼlumot yoʻq</div>'}</div></div>
       <div class="box"><h2>Eng koʻp sotilgan ichimliklar</h2><div class="boxb">${topP.length?topP.map(([id,x])=>hbar(esc(prod(id)?prod(id).name:'—'),x.a,topP[0][1].a,`${x.q} ta · ${num(x.a)}`)).join(''):'<div class="empty">Maʼlumot yoʻq</div>'}</div></div>
       <div class="box"><h2>Toʻlov usullari</h2><div class="boxb"><div class="split">${Object.keys(mm).map(k=>`<i style="width:${(mm[k]/mt*100).toFixed(2)}%;background:${mc[k]}" title="${METHODS[k]}"></i>`).join('')}</div>
         <div class="legend">${Object.keys(mm).map(k=>`<span><i style="background:${mc[k]}"></i>${METHODS[k]} · ${num(mm[k])} (${Math.round(mm[k]/mt*100)}%)</span>`).join('')}</div></div></div></div>
@@ -2641,6 +2690,7 @@ async function klLogin(p,login,pass){
   if(active(p))return {err:'Kompyuter band'};
   const c=S.clients.find(x=>x.login===String(login).trim().toLowerCase());
   if(!c||!(await pwCheck(c,pass)))return {err:'Login yoki parol notoʻgʻri'};
+  if(c.blocked)return {err:'Akkaunt bloklangan — administratorga murojaat qiling'};
   if(active(p))return {err:'Kompyuter band'};
   const other=S.pcs.find(x=>x.session&&x.session.clientId===c.id);if(other)return {err:`Siz PC ${other.n} da oʻynayapsiz`};
   const t=S.tariffs.find(x=>x.type==='hour'&&applies(x)&&grpAllows(p.group,x));if(!t)return {err:'Hozir amal qiladigan tarif yoʻq — administratorga murojaat qiling'};
