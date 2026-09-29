@@ -2798,7 +2798,7 @@ const NET=window.kpNet||null;
 /* ---- Telegram bot: egasiga qizil ogohlantirishlar, shubhali holatlar va smena hisoboti ---- */
 // Boshqa joylardan chaqiriladi: tgNotify('alert'|'susp'|'shift'|'open'|'warn', matn)
 const TGEV=[['shift','Smena yopilganda kassa hisoboti','Kassa harakati (naqd), tushum, sanalgan pul va farq'],['open','Smena ochilganda','Kim, qachon, kassada qancha bilan ochdi'],
-  ['alert','Qizil ogohlantirishlar','Klient dasturi toʻxtatilsa yoki qulf parol bilan ochilsa'],['susp','Shubhali holatlar','Tez yopilib pul qaytarilgan seanslar, qarz tahrirlari, smena kamomadi'],
+  ['alert','Qizil ogohlantirishlar','Klient dasturi yoki xizmati toʻxtatilsa, qulf parol bilan ochilsa, klient uzilsa'],['susp','Shubhali holatlar','Tez yopilib pul qaytarilgan seanslar, qarz tahrirlari, smena kamomadi'],
   ['warn','Jurnaldagi boshqa ogohlantirishlar','Sariq yozuvlar: parol olib tashlash, bloklash, oʻchirish va h.k.']];
 function tgCall(token,method,params){
   if(window.kpTg)return window.kpTg.call(token,method,params);
@@ -2807,10 +2807,10 @@ function tgCall(token,method,params){
     .then(r=>r.json().then(j=>j&&j.ok?{ok:true,result:j.result}:{ok:false,net:false,err:(j&&j.description)||'HTTP '+r.status}),()=>({ok:false,net:true,err:'Internet yoʻq yoki Telegram javob bermadi'}));
 }
 const tgReady=()=>{const g=S.settings.tg;return !!(g&&g.on&&g.token&&g.chat)};
-function tgNotify(kind,text){
+function tgNotify(kind,text,at){
   const g=S.settings.tg;if(!tgReady()||!g.ev[kind])return;
   const head={alert:'🔴 ',susp:'⚠️ ',warn:'🟡 ',shift:'💵 ',open:'🟢 '}[kind]||'';
-  S.tgQ=S.tgQ||[];S.tgQ.push({t:Date.now(),text:head+text});if(S.tgQ.length>50)S.tgQ.splice(0,S.tgQ.length-50);
+  S.tgQ=S.tgQ||[];S.tgQ.push({t:at||Date.now(),text:head+text});if(S.tgQ.length>50)S.tgQ.splice(0,S.tgQ.length-50);
   save();tgFlush();
 }
 // navbat: internet uzilsa xabarlar saqlanib turadi va har daqiqada qayta yuboriladi
@@ -2824,6 +2824,11 @@ async function tgFlush(){
   }finally{tgBusy=false;save()}
 }
 setInterval(tgFlush,60000);
+// «Shubhali holatlar» ga yozilgan har bir hodisa: klient xavfli holatlari qizil, qolganlari shubhali
+const TG_RED=new Set(['paused','service_stopped','manual_unlock','unpair']);
+document.addEventListener('klub:alert',e=>{const a=e.detail;if(!a)return;
+  const who=a.user&&!TG_RED.has(a.kind)&&a.kind!=='shortage'?` — ${(S.users.find(u=>u.login===a.user)||{name:a.user}).name}`:'';
+  tgNotify(TG_RED.has(a.kind)?'alert':'susp',`${(ALERT_KINDS[a.kind]||[a.kind])[0]}\n${a.text}${who}`,a.t)});
 function tgShiftText(sh){
   const F=sh.openAt,T=sh.closeAt+1,L=S.ledger.filter(e=>e.t>=F&&e.t<T),cashK=k=>L.filter(e=>e.method==='cash'&&e.kind===k).reduce((a,e)=>a+e.amount,0);
   const st=shiftStats(F,T),df=sh.counted-sh.expected,un=l=>(S.users.find(u=>u.login===l)||{name:l}).name;

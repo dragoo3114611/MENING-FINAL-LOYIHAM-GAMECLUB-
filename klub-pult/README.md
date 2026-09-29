@@ -73,7 +73,7 @@ Sozlamalar › Telegram bot. Klub Pult egasiga Telegram orqali xabar yuboradi: s
 2. Botingizda Start bosing (yoki botni guruhga qoʻshib, xabar yozing), keyin «Chat ID ni topish».
 3. «Saqlash» va «Sinov xabari yuborish».
 
-Token faqat admin kompyuterdagi bazada saqlanadi, repoga qoʻyilmaydi. Xabarlar Electron main jarayonidan yuboriladi (`tg:call`); internet uzilsa navbatda turadi (eng koʻpi 50 ta) va har daqiqada qayta yuboriladi. Kodning boshqa joylaridan: `tgNotify('alert'|'susp'|'shift'|'open'|'warn', matn)`.
+Token faqat admin kompyuterdagi bazada saqlanadi, repoga qoʻyilmaydi. Xabarlar Electron main jarayonidan yuboriladi (`tg:call`); internet uzilsa navbatda turadi (eng koʻpi 50 ta) va har daqiqada qayta yuboriladi. «Shubhali holatlar» ga yozilgan har bir hodisa (`klub:alert`) avtomatik yuboriladi: klient xavfli holatlari qizil, qolganlari shubhali sifatida. Kodning boshqa joylaridan: `tgNotify('alert'|'susp'|'shift'|'open'|'warn', matn)`.
 
 ## Litsenziya (kalit)
 > **Hozircha oʻchiq** (`admin/license.js` → `ENABLED = false`): dastur cheklovsiz ishlaydi, Litsenziya boʻlimi koʻrinmaydi.
